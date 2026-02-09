@@ -1,0 +1,171 @@
+h1 {
+  color: #333;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 4px 8px 4px 8px;
+  text-align: left;
+}
+
+th.name-col {
+  min-width: 200px;
+}
+
+th.select-row {
+  min-width: 20px;
+}
+
+th {
+  background-color: rgb(0, 103, 143);
+  color: white;
+}
+
+.no-borders {
+  border: none;
+}
+
+.no-borders th,
+.no-borders td {
+  border: none;
+}
+
+.label {
+  font-weight: bold;
+}
+
+.hidden-row {
+  display: none;
+}
+
+.nested {
+  margin: 5px 0px 0px 20px;
+}
+
+/* PAGE LAYOUT SETTINGS */
+html,
+body {
+  height: 100%;
+  /* Force page to full window height */
+  margin: 0;
+  /* Remove default margins */
+  padding: 0;
+  display: flex;
+  /* Use Flexbox for layout */
+  flex-direction: column;
+}
+
+/* FIXED HEADER STYLES */
+#fixed-header {
+  flex: 0 0 auto;
+  /* Do not grow or shrink, just fit content */
+  padding: 0px 0px 0px 0px;
+  /* Padding inside the header */
+  border-bottom: 0px solid #c2c2c2;
+  /* The line across the page */
+  background-color: #fff;
+  /* Ensure background is white */
+  z-index: 10;
+}
+
+/* SCROLLABLE CONTENT STYLES */
+#scrollable-content {
+  flex: 1;
+  /* Take up all remaining space */
+  overflow-y: auto;
+  /* Enable vertical scrolling */
+  padding: 0px 0px 20px 15px;
+  /* Padding inside the scroll area */
+}
+
+/* Flex container to align image and text side-by-side */
+.header-row {
+  display: flex;
+  align-items: center;
+  /* Vertically centers the text with the image */
+  gap: 10px;
+  /* Adds space between the image and the text */
+  margin-bottom: 5px;
+  /* Spacing below the header */
+}
+
+/* Remove default H1 margins to prevent alignment issues */
+.header-row h1 {
+  margin: 0;
+  font-size: 52px;
+}
+
+/* Styles for filter controls */
+.filter-controls input[type="text"] {
+  margin-right: 5px;
+  padding: 3px;
+}
+
+.filter-controls select {
+  margin-right: 10px;
+  padding: 3px;
+}
+
+.filter-controls button {
+  margin-right: 5px;
+  cursor: pointer;
+}
+
+/* Fieldset Styles */
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+fieldset.options-box {
+  margin-left: 15px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 0px;
+  /* margin-bottom removed as it's handled by control-row gap usually, but kept small or 0 */
+  background-color: #f9f9f9;
+  width: fit-content;
+  /* Keeps the box tight to the content */
+}
+
+fieldset.options-box legend {
+  font-weight: bold;
+  color: #333;
+  padding: 0 5px;
+  /* Adds space around the text in the border cut */
+}
+
+.action-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: rgb(0, 103, 143);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  height: fit-content;
+}
+
+.action-button:hover {
+  background-color: rgb(0, 83, 115);
+}
+
+.calling-link {
+  text-decoration: none;
+  /* Remove underline */
+  cursor: pointer;
+}
+
+.calling-link:hover {
+  text-decoration: underline;
+  /* Add underline on hover */
+}

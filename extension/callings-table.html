@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="callings-table.css">
+  <script src="common.js"></script>
+  <script src="generated-table-script.js"></script>
+</head>
+<body>
+  <div id="fixed-header">
+    <div class="header-row">
+      <img src="images/cristus.png" width="48">
+      <h1><span class="ward-name"></span> Callings</h1>
+    </div>
+
+    <div class="control-row">
+      <fieldset class="options-box">
+        <legend>Filter Options</legend>
+        <table class="no-borders">
+          <tr>
+            <td class="label">Saved Filters:</td>
+            <td class="filter-controls">
+              <select id="saved-filters-select">
+                <option value="">-- Select a Filter --</option>
+              </select>
+              <input type="text" id="filter-name-input" placeholder="Name this filter...">
+              <button id="btn-save-filter">Save New</button>
+              <button id="btn-update-filter" style="display:none;">Update Current</button>
+              <button id="btn-delete-filter" disabled>Delete</button>
+            </td>
+          </tr>
+          <tr><td class="label">Collapse Callings:</td><td><input type="checkbox" id="collapse-callings" checked="true"></td></tr>
+          <tr><td class="label">Show Only Selected Columns:</td><td><input type="checkbox" id="only-show-selected-columns"></td></tr>
+          <tr><td class="label">Hide Vacant Callings:</td><td><input type="checkbox" id="hide-vacant-callings"></td></tr>
+        </table>
+      </fieldset>
+      <button id="btn-copy-table" class="action-button">Copy Table</button>
+    </div>
+  </div>
+
+  <div id="scrollable-content">
+    <table id="callings-table">
+      <thead>
+        <tr><th class="select-row">Select</th>
+        <th class="name-col">Organization</th>
+        <th class="name-col">Calling</th>
+        <th class="name-col">Name</th>
+        <th>Email</th></tr>
+      </thead>
+      <tbody id="callings-table-body" />
+    </table>
+    <div class="nested"><b>Count: <span id="calling-count">0</span></b></div>
+  </div>
+</body>
+</html>
+
