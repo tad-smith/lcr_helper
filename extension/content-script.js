@@ -97,7 +97,7 @@ async function fetchMemberEmails(callings) {
     if (calling.memberProfileNumber) {
       calling.email = await emailPromises.get(calling.memberProfileNumber);
     } else {
-      calling.email = 'N/A';
+      calling.email = '';
     }
   }));
 

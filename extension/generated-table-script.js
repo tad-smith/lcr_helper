@@ -8,7 +8,48 @@ const SYSTEM_FILTERS = [
     collapseCallings: true,
     onlyShowSelected: true,
     hideVacantCallings: false,
-    selectedCallings: ['Bishopric:Bishop', 'Bishopric:Bishopric-First-Counselor', 'Bishopric:Ward-Executive-Secretary', 'Bishopric:Bishopric-Second-Counselor', 'Bishopric:Ward-Assistant-Executive-Secretary', 'Bishopric:Ward-Clerk', 'Bishopric:Ward-Assistant-Clerk', 'Bishopric:Ward-Assistant-Clerk--Membership', 'Bishopric:Ward-Assistant-Clerk--Finance', 'Elders Quorum Presidency:Elders-Quorum-President', 'Elders Quorum Presidency:Elders-Quorum-First-Counselor', 'Elders Quorum Presidency:Elders-Quorum-Second-Counselor', 'Elders Quorum Presidency:Elders-Quorum-Secretary', 'Relief Society Presidency:Relief-Society-President', 'Relief Society Presidency:Relief-Society-First-Counselor', 'Relief Society Presidency:Relief-Society-Second-Counselor', 'Relief Society Presidency:Relief-Society-Secretary', 'Aaronic Priesthood:Aaronic-Priesthood-Advisors', 'Aaronic Priesthood:Aaronic-Priesthood-Specialist', 'Young Women Presidency:Young-Women-President', 'Young Women Presidency:Young-Women-First-Counselor', 'Young Women Presidency:Young-Women-Second-Counselor', 'Young Women Presidency:Young-Women-Secretary', 'Young Women:Young-Women-Specialist', 'Young Women:Young-Women-Class-Adviser', 'Sunday School Presidency:Sunday-School-President', 'Sunday School Presidency:Sunday-School-First-Counselor', 'Sunday School Presidency:Sunday-School-Second-Counselor', 'Sunday School Presidency:Sunday-School-Secretary', 'Primary Presidency:Primary-President', 'Primary Presidency:Primary-First-Counselor', 'Primary Presidency:Primary-Second-Counselor', 'Primary Presidency:Primary-Secretary', 'Ward Missionaries:Ward-Mission-Leader', 'Ward Missionaries:Assistant-Ward-Mission-Leader', 'Temple and Family History:Ward-Temple-and-Family-History-Leader', 'Young Single Adult:Young-Single-Adult-Adviser', 'History:History-Specialist', 'Technology:Email-Communication-Specialist', 'Technology:Technology-Specialist']
+    selectedCallings: [
+      "Bishopric:Bishop",
+      "Bishopric:Bishopric-First-Counselor",
+      "Bishopric:Bishopric-Second-Counselor",
+      "Bishopric:Ward-Executive-Secretary",
+      "Bishopric:Ward-Assistant-Executive-Secretary",
+      "Bishopric:Ward-Clerk",
+      "Bishopric:Ward-Assistant-Clerk",
+      "Bishopric:Ward-Assistant-Clerk--Membership",
+      "Bishopric:Ward-Assistant-Clerk--Finance",
+      "Elders Quorum Presidency:Elders-Quorum-President",
+      "Elders Quorum Presidency:Elders-Quorum-First-Counselor",
+      "Elders Quorum Presidency:Elders-Quorum-Second-Counselor",
+      "Elders Quorum Presidency:Elders-Quorum-Secretary",
+      "Relief Society Presidency:Relief-Society-President",
+      "Relief Society Presidency:Relief-Society-First-Counselor",
+      "Relief Society Presidency:Relief-Society-Second-Counselor",
+      "Relief Society Presidency:Relief-Society-Secretary",
+      "Aaronic Priesthood:Aaronic-Priesthood-Advisors",
+      "Aaronic Priesthood:Aaronic-Priesthood-Specialist",
+      "Young Women Presidency:Young-Women-President",
+      "Young Women Presidency:Young-Women-First-Counselor",
+      "Young Women Presidency:Young-Women-Second-Counselor",
+      "Young Women Presidency:Young-Women-Secretary",
+      "Young Women:Young-Women-Specialist",
+      "Young Women:Young-Women-Class-Adviser",
+      "Sunday School Presidency:Sunday-School-President",
+      "Sunday School Presidency:Sunday-School-First-Counselor",
+      "Sunday School Presidency:Sunday-School-Second-Counselor",
+      "Sunday School Presidency:Sunday-School-Secretary",
+      "Primary Presidency:Primary-President",
+      "Primary Presidency:Primary-First-Counselor",
+      "Primary Presidency:Primary-Second-Counselor",
+      "Primary Presidency:Primary-Secretary",
+      "Ward Missionaries:Ward-Mission-Leader",
+      "Ward Missionaries:Assistant-Ward-Mission-Leader",
+      "Temple and Family History:Ward-Temple-and-Family-History-Leader",
+      "Young Single Adult:Young-Single-Adult-Adviser",
+      "History:History-Specialist",
+      "Technology:Email-Communication-Specialist",
+      "Technology:Technology-Specialist"
+    ]
   },
   {
     name: "No filter",
@@ -534,6 +575,7 @@ function deleteFilter() {
   refreshFilterDropdown();
 }
 
+
 function applySettingsToUI() {
   const collapseCb = document.getElementById('collapse-callings');
   const onlyShowCb = document.getElementById('only-show-selected-columns');
@@ -542,11 +584,39 @@ function applySettingsToUI() {
   onlyShowCb.checked = settings.currentState.onlyShowSelected;
 
   clearCallingsTable();
-  const dataToLoad = settings.currentState.collapseCallings ? collapsedCallings : callings;
+  const dataToLoad = settings.currentState.collapseCallings ? [...collapsedCallings] : [...callings];
+
+  // Creates map of 'id' -> 'index' from settings.currentState.selectedCallings for O(1) lookup
+  const indexMap = new Map();
+  settings.currentState.selectedCallings.forEach((id, index) => {
+    indexMap.set(id, index);
+  });
+
+  // Sort the data
+  // - If both items are in the map, sort by their index value.
+  // - If Item A is in the map and Item B is not, Item A comes first (-1).
+  // - If Item B is in the map and Item A is not, Item B comes first (1).
+  // - If neither is in the map, maintain original order (return 0).
+  dataToLoad.sort((a, b) => {
+    const indexA = indexMap.has(a.id) ? indexMap.get(a.id) : -1;
+    const indexB = indexMap.has(b.id) ? indexMap.get(b.id) : -1;
+
+    if (indexA !== -1 && indexB !== -1) {
+      return indexA - indexB;
+    } else if (indexA !== -1) {
+      return -1;
+    } else if (indexB !== -1) {
+      return 1;
+    } else {
+      return 0;
+    }
+  });
+
   appendCallingsTable(dataToLoad);
 
   refreshFilterDropdown();
 }
+
 
 function saveSettingsToStorage() {
   chrome.storage.local.set({ settings: settings });
@@ -583,6 +653,23 @@ document.addEventListener('DOMContentLoaded', () => {
         settings.savedFilters = [];
       } else {
         settings = result.settings;
+
+        // If a system filter is loaded, sync its settings from the code definition.
+        // This ensures that updates to SYSTEM_FILTERS (like reordering) are applied immediately.
+        if (settings.currentState.loadedFilterName && isSystemFilter(settings.currentState.loadedFilterName)) {
+          const sysFilter = SYSTEM_FILTERS.find(f => f.name === settings.currentState.loadedFilterName);
+          if (sysFilter) {
+            console.log(`Syncing system filter "${sysFilter.name}" from code definition.`);
+            settings.currentState.selectedCallings = [...sysFilter.selectedCallings];
+            settings.currentState.collapseCallings = sysFilter.collapseCallings;
+            settings.currentState.onlyShowSelected = sysFilter.onlyShowSelected;
+            settings.currentState.hideVacantCallings = sysFilter.hideVacantCallings || false;
+
+            // Should we save the corrected state back to storage immediately?
+            // Yes, to keep it consistent.
+            saveSettingsToStorage();
+          }
+        }
       }
     }
     applySettingsToUI();
