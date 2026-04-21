@@ -1,0 +1,7 @@
+# Files clasp should NOT push to the Apps Script project.
+# (Anything not in rootDir is already ignored; list items below are extra.)
+**/node_modules/**
+**/.git/**
+**/.DS_Store
+**/*.md
+**/.clasp.json.example

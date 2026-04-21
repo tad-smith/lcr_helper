@@ -1,1 +1,4 @@
 .DS_Store
+
+# clasp writes the Apps Script scriptId here — per-environment, not versioned.
+calling_sheet/.clasp.json
