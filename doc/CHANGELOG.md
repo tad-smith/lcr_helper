@@ -7,6 +7,22 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — docs pass + CLAUDE.md refresh
+
+- `doc/position-mapping.md`: new. The natural derivation rule, override
+  behavior, when to use an override vs. leave a row custom, debugging a
+  mismatch.
+- `doc/extension-config.md`: new. `chrome.storage.local` key layout,
+  first-time setup, URL validation, secret rotation, clearing settings,
+  troubleshooting table.
+- `CLAUDE.md`: rewritten to span all three subsystems. Adds a
+  repository-shape summary, the CHANGELOG-is-load-bearing rule, a
+  `calling_sheet/` section with gotchas (200-status-only, FIRST_EMAIL_
+  COLUMN=4, same-name-in-two-files-is-a-load-error, clasp.json is
+  gitignored), a `doc/` workflow section, and the cross-subsystem
+  three-places-to-edit list for the email-merge algorithm.
+- `doc/README.md`: all linked docs now exist.
+
 ## 2026-04-21 — user-facing import flow doc
 
 - `doc/import-flow.md`: prerequisites checklist, first-time setup,
