@@ -7,6 +7,24 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — extension: review modal + apply
+
+- `extension/callings-sheet-import.js`: full review modal — four
+  collapsible sections (Updates, Vacating, Custom-or-Unmatched, In LCR
+  but not in sheet). Updates and Vacating have per-row checkboxes
+  (checked by default); informational sections are read-only. Rows
+  show before/after with strikethrough on removed items and highlight
+  on added items; annotation-lost warnings render with a leading ⚠ and
+  an inline note. Banner at the top if any `annotation_lost` warning
+  would fire. Apply button label syncs with checkbox count.
+- Apply flow: POST `?action=apply` with `Content-Type: text/plain`
+  (avoids CORS preflight). Handles `stale_snapshot` by re-fetching the
+  snapshot, recomputing the diff, and re-opening the modal. Other
+  errors shown as a toast with a Retry button. Result toast shows
+  applied / skipped / errors counts.
+- `showToast` / `hideToast` helpers using the `#sheet-toast` container
+  added in step 5.
+
 ## 2026-04-21 — extension: snapshot fetch + diff (no review UI)
 
 - `extension/callings-sheet-import.js`: port of `parseEmailCell`,
