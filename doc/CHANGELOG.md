@@ -7,6 +7,19 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — extension: snapshot fetch + diff (no review UI)
+
+- `extension/callings-sheet-import.js`: port of `parseEmailCell`,
+  `mergeEmails`, and `splitEmails`; new `computeDiff(snapshot, collapsed)`
+  categorizing rows as UPDATE / VACATE / UNCHANGED / CUSTOM_OR_UNMATCHED
+  / MISSING_IN_SHEET; `fetchSnapshot(url, secret, ward)` GET + JSON
+  parse. Click handler logs the snapshot and diff to console and shows
+  a brief alert with counts (the review modal replaces the alert in the
+  next commit).
+- `extension/generated-table-script.js`: expose `{callings,
+  collapsedCallings, ward}` on `window.LCRHelper` so sibling scripts can
+  read them (top-level `const` doesn't auto-attach to `window`).
+
 ## 2026-04-21 — extension: settings modal
 
 - `extension/manifest.json`: add `host_permissions` for

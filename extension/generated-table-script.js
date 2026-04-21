@@ -77,6 +77,10 @@ const callings = decodeUrlParameter('callings', true);
 const collapsedCallings = mergeCallings(callings);
 const ward = decodeUrlParameter('ward', false);
 
+// Expose page context for sibling scripts (callings-sheet-import.js).
+// `const` at script top-level is not automatically attached to `window`.
+window.LCRHelper = { callings, collapsedCallings, ward };
+
 /**
  * Reads a URL parameter that is an encoded JSON array, decodes it, 
  * and parses it back into a JavaScript array of objects.
