@@ -7,6 +7,17 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — apply endpoint + EmailMerge sanity check
+
+- `calling_sheet/EmailMerge.gs`: server-side port of `parseEmailCell`,
+  `mergeEmails`, and `verifyInternalAliasesPreserved`. The sanity check
+  refuses operations that would drop an internal-domain alias.
+- `calling_sheet/Apply.gs`: `handleApply(body)` — validates payload,
+  checks snapshot freshness via `DriveApp.getFileById(...).getLastUpdated()`,
+  per operation runs the sanity check then clears+writes column D onward
+  with a single `setValues()`, calls `SpreadsheetApp.flush()` at the end.
+- `calling_sheet/Code.gs`: drop apply stub; Apply.gs owns the symbol.
+
 ## 2026-04-21 — snapshot endpoint
 
 - `calling_sheet/Snapshot.gs`: implements `handleSnapshot(wardName)`.

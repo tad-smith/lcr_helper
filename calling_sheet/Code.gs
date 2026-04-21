@@ -65,7 +65,3 @@ function jsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Stub for apply — implemented in Apply.gs in a subsequent commit. */
-function handleApply(body) {
-  return jsonResponse({ ok: false, error: 'not_implemented', handler: 'apply' });
-}
