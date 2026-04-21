@@ -7,6 +7,13 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — fix: UTF-8 charset on the callings-table page
+
+- `extension/callings-table.html`: add `<meta charset="utf-8">`. Without
+  it, Chrome fell back to a legacy encoding for this extension-origin
+  page, so the inline ⚙ gear in the settings button (plus 👁 and ⚠
+  elsewhere in the modals) rendered as mojibake (`âš™` for the gear).
+
 ## 2026-04-21 — merge rule: internal aliases always trail personal emails
 
 - Behavior change. Previously, internal-domain aliases were preserved
