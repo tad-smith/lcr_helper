@@ -65,10 +65,7 @@ function jsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Stubs — implemented in Snapshot.gs and Apply.gs in subsequent commits. */
-function handleSnapshot(wardName) {
-  return jsonResponse({ ok: false, error: 'not_implemented', handler: 'snapshot' });
-}
+/** Stub for apply — implemented in Apply.gs in a subsequent commit. */
 function handleApply(body) {
   return jsonResponse({ ok: false, error: 'not_implemented', handler: 'apply' });
 }

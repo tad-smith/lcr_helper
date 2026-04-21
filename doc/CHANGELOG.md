@@ -7,6 +7,19 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — snapshot endpoint
+
+- `calling_sheet/Snapshot.gs`: implements `handleSnapshot(wardName)`.
+  Reads the ward tab, collects non-empty cells from column D onward as
+  `emails`, derives `lcr_id` via override or natural `<Org>:<Position-
+  with-dashes>` rule, returns JSON with `generated_at` timestamp. Errors
+  for missing ward / missing tab per spec.
+- `calling_sheet/Code.gs`: removed snapshot stub; Snapshot.gs owns the
+  implementation.
+- Note: `is_custom` is deliberately not on the server response — the
+  extension classifies rows as custom when their `lcr_id` doesn't appear
+  in its merged callings map.
+
 ## 2026-04-21 — scaffold for calling-sheet import feature
 
 - root: new `README.md` orienting the reader across the three subsystems
