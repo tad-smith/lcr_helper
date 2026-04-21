@@ -25,7 +25,8 @@ function isInternalAddr(addr, internalDomain) {
 
 function mergeEmails({ existing, lcrEmails, internalDomain }) {
   const lcrLower = new Set(lcrEmails.map((e) => String(e).toLowerCase()));
-  const kept = [];
+  const personal = [];
+  const internals = [];
   const consumed = new Set();
   const warnings = [];
 
@@ -34,9 +35,9 @@ function mergeEmails({ existing, lcrEmails, internalDomain }) {
     const lower = parsed.canonical.toLowerCase();
 
     if (isInternalAddr(parsed.canonical, internalDomain)) {
-      kept.push(raw);
+      internals.push(raw);
     } else if (lcrLower.has(lower)) {
-      kept.push(raw);
+      personal.push(raw);
       consumed.add(lower);
     } else if (parsed.annotation) {
       warnings.push({
@@ -49,10 +50,11 @@ function mergeEmails({ existing, lcrEmails, internalDomain }) {
   }
 
   for (const addr of lcrEmails) {
-    if (!consumed.has(String(addr).toLowerCase())) kept.push(addr);
+    if (!consumed.has(String(addr).toLowerCase())) personal.push(addr);
   }
 
-  return { emails: kept, warnings };
+  // Internal aliases always trail all personal emails.
+  return { emails: [...personal, ...internals], warnings };
 }
 
 function splitEmails(s) {

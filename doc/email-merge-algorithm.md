@@ -57,7 +57,8 @@ function mergeEmails({ existing, lcrEmails, internalDomain }) {
   const isInternal = addr =>
     addr.toLowerCase().endsWith('@' + internalDomain.toLowerCase());
   const lcrLower = new Set(lcrEmails.map(e => e.toLowerCase()));
-  const kept = [];
+  const personal = [];
+  const internals = [];
   const consumed = new Set();
   const warnings = [];
 
@@ -66,9 +67,9 @@ function mergeEmails({ existing, lcrEmails, internalDomain }) {
     const lower = parsed.canonical.toLowerCase();
 
     if (isInternal(parsed.canonical)) {
-      kept.push(rawAddr);                   // preserve internal alias verbatim
+      internals.push(rawAddr);              // preserve verbatim; slotted at end later
     } else if (lcrLower.has(lower)) {
-      kept.push(rawAddr);                   // LCR match — preserve cell verbatim
+      personal.push(rawAddr);               // LCR match — preserve cell verbatim
       consumed.add(lower);
     } else if (parsed.annotation) {
       warnings.push({
@@ -84,24 +85,33 @@ function mergeEmails({ existing, lcrEmails, internalDomain }) {
 
   for (const addr of lcrEmails) {
     if (!consumed.has(addr.toLowerCase())) {
-      kept.push(addr);
+      personal.push(addr);
     }
   }
 
-  return { emails: kept, warnings };
+  // Internal aliases always trail all personal emails.
+  return { emails: [...personal, ...internals], warnings };
 }
 ```
 
 ### Properties
 
-- **Internal aliases are always preserved in their original position.**
-  Verbatim, including any annotation.
-- **Position is stable for anyone still called.** Someone who keeps their
-  calling keeps their cell in the same column.
-- **Newly called people are appended** in LCR's order after existing cells.
+- **Internal aliases are always preserved, and always trail all personal
+  emails.** Verbatim, including any annotation. Their relative order
+  among each other is preserved.
+- **Personal emails keep their order relative to each other.** Someone
+  who stays called and was in column D stays in column D, minus any
+  internal aliases that used to sit between them.
+- **Newly called people are appended** in LCR's order after existing
+  personal cells — and therefore before any internal aliases.
 - **Released people are dropped silently** (plain cell, no annotation).
 - **Released people with annotations trigger a warning.** Their cell is
   dropped; the warning lets the user re-annotate after import if desired.
+- **One-time rearrangement on first import.** Sheets whose internal
+  aliases were interleaved between personal emails will have their
+  internal aliases moved to the tail on the first import after this rule
+  landed. This is the diff review's opportunity to catch anything
+  unintended.
 
 ## Worked examples
 
@@ -155,7 +165,7 @@ D: co.secretary@csnorth.org
 Internal alias preserved. Personal email dropped (no annotation, no
 warning).
 
-### 4. Interleaved internal + personal
+### 4. Interleaved internal + personal — internals move to the tail
 
 Before:
 ```
@@ -165,11 +175,12 @@ LCR says: `["alice@x.com", "bob@y.com"]`
 
 After:
 ```
-D: alice@x.com   E: co.bishop@csnorth.org   F: bob@y.com
+D: alice@x.com   E: bob@y.com   F: co.bishop@csnorth.org
 ```
 
-Internal alias stays in column E. Both personal emails still match LCR →
-preserved in place.
+Personal emails stay in their original relative order (Alice, Bob).
+The internal alias is preserved verbatim and slotted at the tail. No
+personal email is dropped; no warning.
 
 ### 5. Person released, new person called
 

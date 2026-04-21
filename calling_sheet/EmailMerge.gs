@@ -79,7 +79,8 @@ function mergeEmails(existing, lcrEmails, internalDomain) {
   for (var i = 0; i < lcrEmails.length; i++) {
     lcrLower[String(lcrEmails[i]).toLowerCase()] = true;
   }
-  var kept = [];
+  var personal = [];
+  var internals = [];
   var consumed = {};
   var warnings = [];
   for (var j = 0; j < existing.length; j++) {
@@ -87,9 +88,9 @@ function mergeEmails(existing, lcrEmails, internalDomain) {
     var parsed = parseEmailCell(raw);
     var lower = parsed.canonical.toLowerCase();
     if (isInternalAddr(parsed.canonical, internalDomain)) {
-      kept.push(raw);
+      internals.push(raw);
     } else if (lcrLower[lower]) {
-      kept.push(raw);
+      personal.push(raw);
       consumed[lower] = true;
     } else if (parsed.annotation) {
       warnings.push({
@@ -103,8 +104,9 @@ function mergeEmails(existing, lcrEmails, internalDomain) {
   for (var k = 0; k < lcrEmails.length; k++) {
     var l = String(lcrEmails[k]).toLowerCase();
     if (!consumed[l]) {
-      kept.push(lcrEmails[k]);
+      personal.push(lcrEmails[k]);
     }
   }
-  return { emails: kept, warnings: warnings };
+  // Internal aliases always trail all personal emails.
+  return { emails: personal.concat(internals), warnings: warnings };
 }

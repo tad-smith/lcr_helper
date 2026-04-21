@@ -82,7 +82,11 @@ Rules for columns D onward:
 
 - Cells hold email addresses, one per cell, growing rightward.
 - Addresses ending in `@<internal_domain>` (for this ward) are **internal
-  forwarding aliases** and are preserved verbatim by the import.
+  forwarding aliases** and are preserved verbatim by the import. After
+  every import, all internal aliases trail all personal emails on the
+  row (see
+  [`email-merge-algorithm.md`](./email-merge-algorithm.md)'s
+  *Properties* list).
 - All other addresses are treated as personal emails. The import replaces
   them with whatever LCR currently reports for that calling.
 - A cell may include a manual annotation of the form

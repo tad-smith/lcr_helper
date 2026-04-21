@@ -7,6 +7,25 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — merge rule: internal aliases always trail personal emails
+
+- Behavior change. Previously, internal-domain aliases were preserved
+  in their original column; new LCR emails were appended at the end,
+  which could leave an alias sandwiched between personal emails. New
+  rule: after merging, all internal aliases appear at the tail of the
+  cell list; personal emails keep their relative order.
+- `extension/callings-sheet-import.js`: `mergeEmails` reshuffled to
+  collect into two lists (`personal`, `internals`) and concatenate at
+  the end. The server-side sanity check already only verified
+  presence (not position), so no change was needed there.
+- `calling_sheet/EmailMerge.gs`: same change, V8-compatible syntax.
+- `doc/email-merge-algorithm.md`: pseudocode updated; *Properties*
+  list rewritten; worked example 4 (interleaved) now shows the
+  internal alias moving to the tail; new *one-time rearrangement*
+  property warns that sheets with interleaved aliases will see a
+  cell reorder on the first import after this change.
+- `doc/sheet-setup.md`: short note pointing at the new rule.
+
 ## 2026-04-21 — preserve the sheet's existing onOpen trigger
 
 - `calling_sheet/Triggers.gs`: new file holding the pre-existing
