@@ -39,6 +39,10 @@
     "scripting",
     "storage"
   ],
+  "host_permissions": [
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*"
+  ],
   "web_accessible_resources": [
     {
       "resources": [

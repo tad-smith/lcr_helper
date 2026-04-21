@@ -7,6 +7,26 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — extension: settings modal
+
+- `extension/manifest.json`: add `host_permissions` for
+  `script.google.com` and `script.googleusercontent.com` so the import
+  flow can reach the Apps Script web app.
+- `extension/callings-table.html`: add *Import into Calling Sheet*
+  action button + gear icon button; hidden modal + toast containers;
+  `<link>` to new CSS and `<script>` tags for settings and import.
+- `extension/callings-sheet-settings.js`: load/save to
+  `chrome.storage.local['callingSheetSettings']`, render settings modal
+  with password-toggle secret field and URL validation, expose
+  `window.LCRHelperSettings`.
+- `extension/callings-sheet-import.css`: modal, form, review, toast, and
+  icon-button styles used by the import flow.
+- `extension/callings-sheet-import.js`: stub handler — opens settings
+  modal on first-use with "Configure before first use" banner. Full
+  import flow lands in subsequent commits.
+- `extension/images/gear_icon.svg`: fallback gear glyph (button still
+  uses the inline `⚙` unicode).
+
 ## 2026-04-21 — apply endpoint + EmailMerge sanity check
 
 - `calling_sheet/EmailMerge.gs`: server-side port of `parseEmailCell`,
