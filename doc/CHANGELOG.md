@@ -7,6 +7,17 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — user-facing import flow doc
+
+- `doc/import-flow.md`: prerequisites checklist, first-time setup,
+  running an import, reading the review modal (sections, row styling,
+  checkboxes), applying, and common situations (stale snapshot,
+  retryable errors, custom/unmatched rows, missing-in-sheet rows).
+  Includes a text rendering of the modal and screenshot slot markers.
+- Real end-to-end verification against a live deployment remains the
+  user's responsibility — captured as a prerequisite, not executed
+  here.
+
 ## 2026-04-21 — extension: review modal + apply
 
 - `extension/callings-sheet-import.js`: full review modal — four
