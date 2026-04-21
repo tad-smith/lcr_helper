@@ -1,15 +1,19 @@
 /* Styles for the import button, settings modal, review modal, and toast. */
 
 .icon-button {
-  padding: 0 10px;
+  padding: 0 12px;
+  min-width: 40px;
   height: 40px;
-  font-size: 18px;
+  font-size: 26px;
   line-height: 1;
   cursor: pointer;
   background: #fff;
   color: rgb(0, 103, 143);
   border: 1px solid rgb(0, 103, 143);
   border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .icon-button:hover {
   background: rgb(0, 103, 143);

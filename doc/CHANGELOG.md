@@ -7,6 +7,13 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — fix: gear icon size
+
+- `extension/callings-sheet-import.css`: bump `.icon-button` font-size
+  from 18 to 26 px; add `display: inline-flex` + centering so the glyph
+  sits correctly in the button. The `⚙` glyph's bounding box is small
+  relative to its font-size, so the original 18 px read as tiny.
+
 ## 2026-04-21 — fix: UTF-8 charset on the callings-table page
 
 - `extension/callings-table.html`: add `<meta charset="utf-8">`. Without
