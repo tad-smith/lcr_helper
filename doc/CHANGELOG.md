@@ -7,6 +7,11 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — extension version 1.2.0.0
+
+- `extension/manifest.json`: bump `version` from `1.1.4.2` to
+  `1.2.0.0` for the calling-sheet import feature release.
+
 ## 2026-04-21 — fix: gear icon size
 
 - `extension/callings-sheet-import.css`: bump `.icon-button` font-size
