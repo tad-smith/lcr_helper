@@ -14,6 +14,41 @@ document covers edge cases and operations.
 - `clasp login` completed (opens a browser, signs you in, stores
   credentials in `~/.clasprc.json`).
 
+## Adopting a pre-existing script
+
+If the target sheet already has an Apps Script project attached — for
+example, a container-bound script with an `onOpen` trigger that this
+repo doesn't yet know about — do **not** `clasp clone` into
+`calling_sheet/`. That would dump existing files alongside our tree and
+muddle the pushed state. Instead:
+
+1. Back up the existing script in a throwaway directory:
+
+   ```bash
+   mkdir /tmp/existing-script-backup && cd /tmp/existing-script-backup
+   clasp clone <existingScriptId>
+   ls                # all current .gs and appsscript.json files
+   ```
+
+2. Diff the backup against `calling_sheet/`. Anything in the backup that
+   is not represented in our repo must either:
+
+   - be added to our repo as a new `.gs` file (and committed), or
+   - be merged into an existing file here.
+
+   `clasp push` will **delete** remote files that are not in the local
+   push, so anything missed in this diff will vanish on the first
+   deploy.
+
+3. Once parity is achieved, copy the existing `scriptId` into
+   `calling_sheet/.clasp.json` and proceed with the *Initial deploy*
+   below. Skip step 1's `clasp clone` — you already have the scriptId.
+
+As of the current commit, the repo already includes the sheet's
+pre-existing `onOpen` toast in `calling_sheet/Triggers.gs`. If the
+backup turns up other functions, add them and update
+`doc/CHANGELOG.md`.
+
 ## Initial deploy
 
 1. **Create or clone the Apps Script project.**
@@ -24,11 +59,9 @@ document covers edge cases and operations.
      ```
      `--parentId` binds the script to the spreadsheet so it can read/write
      without needing additional OAuth scopes at deploy time.
-   - To adopt an existing script:
-     ```bash
-     cd calling_sheet
-     clasp clone <scriptId>
-     ```
+   - To adopt an existing script, skip `clasp clone` in this directory
+     (see *Adopting a pre-existing script* above) — just paste the
+     existing `scriptId` into `.clasp.json`.
 2. **Pin the scriptId.**
    ```bash
    cp .clasp.json.example .clasp.json
@@ -130,6 +163,8 @@ If your organization disallows anonymous web apps, you will need to:
 | Extension: `{ ok: false, error: "stale_snapshot" }` | Sheet edited between snapshot and apply | Extension will re-fetch automatically. |
 | `clasp push` fails with 403 | Apps Script API disabled on your Google account | `https://script.google.com/home/usersettings` → turn on. |
 | Push succeeds but deploy serves old code | Deploy didn't pick up latest version | Use `clasp deploy -i <deploymentId>`; check `clasp versions` to see which version the deployment points at. |
+| Pre-existing function disappeared after push | Function was only in the remote project, not in our repo | Restore it from the backup made during *Adopting a pre-existing script*, add it to `calling_sheet/`, commit, push. |
+| Timezone changed after first push | Existing `appsscript.json` had a different zone than ours (`America/Denver`) | Either accept the change, or update `appsscript.json` in this repo to match the old zone and re-push. |
 
 ## See also
 

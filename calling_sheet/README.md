@@ -15,11 +15,44 @@ calling_sheet/
 ├── Auth.gs                  # Shared-secret verification
 ├── Config.gs                # Reads _config and _position_overrides, with cache
 ├── Logging.gs               # Writes to the _log tab and console
-├── Snapshot.gs              # (snapshot endpoint — added later)
-├── Apply.gs                 # (apply endpoint — added later)
-├── EmailMerge.gs            # (merge algorithm sanity check — added later)
+├── Snapshot.gs              # Snapshot endpoint
+├── Apply.gs                 # Apply endpoint
+├── EmailMerge.gs            # Merge algorithm sanity check
+├── Triggers.gs              # onOpen toast and other container triggers
 └── README.md                # this file
 ```
+
+## Adopting an existing Apps Script project
+
+If the target sheet already has an Apps Script project attached (a
+container-bound script), you need to adopt its `scriptId` rather than
+create a new one — otherwise you'll end up with two scripts on the
+sheet and only one of them running container triggers.
+
+**Before pushing anything**, back up the existing code. `clasp push` is
+destructive on the remote side: it uploads the local tree and **deletes
+any remote files not present locally**. If the existing project has
+functions we haven't brought into this repo, those will be wiped.
+
+To back up:
+
+```bash
+mkdir /tmp/existing-script-backup && cd /tmp/existing-script-backup
+clasp clone <existingScriptId>
+ls          # everything previously in the project is now here; keep this dir
+```
+
+Then diff against our tree. Anything in the backup that *isn't* in
+`calling_sheet/` needs to either be migrated into this repo (add a new
+`.gs` file) or its contents merged into an existing one.
+
+The current repo already includes `Triggers.gs` with the sheet's
+`onOpen` toast. If you discover additional functions during the diff,
+open a PR that adds them and update `doc/CHANGELOG.md`.
+
+After the diff, proceed with *First-time setup* below — `clasp clone`
+in `calling_sheet/` itself is no longer needed; you have the scriptId,
+so just put it in `.clasp.json` and push.
 
 ## First-time setup
 

@@ -121,6 +121,7 @@ real file lands.
 | `Auth.gs` | `verifySecret(provided)` reading `SHARED_SECRET` from Script Properties; length-aware constant-time compare. |
 | `Config.gs` | `getConfig()` reads `_config` + `_position_overrides` with a 5-minute CacheService cache keyed on the spreadsheet's `getLastUpdated()`. |
 | `Logging.gs` | `logEvent(level, message, data)` — writes to the auto-created `_log` tab and to `console.log`. |
+| `Triggers.gs` | Container-event triggers. Currently hosts the sheet's `onOpen` toast about 24-hour forwarding propagation. |
 | `Snapshot.gs` | `handleSnapshot(wardName)` — reads the ward tab, derives `lcr_id` per row (override or natural), returns JSON with `generated_at`. Owns the `FIRST_EMAIL_COLUMN` / `ORG_COLUMN` / `POS_COLUMN` constants. |
 | `Apply.gs` | `handleApply(body)` — validates payload, runs the Drive `getLastUpdated` staleness check, runs `verifyInternalAliasesPreserved` per operation, clears + writes column D onward with a single `setValues()` per row, one `SpreadsheetApp.flush()` at the end. |
 | `EmailMerge.gs` | `parseEmailCell`, `mergeEmails`, `verifyInternalAliasesPreserved` — the server-side mirror of the extension's merge logic. |
@@ -142,6 +143,12 @@ real file lands.
   owns a previously-stubbed function, delete the stub from `Code.gs`.
 - **`.clasp.json` is gitignored.** Committed template:
   `.clasp.json.example`. The scriptId is per-environment.
+- **`clasp push` is destructive on the remote side.** It uploads the
+  local tree and deletes any remote files not present locally. When
+  adopting a pre-existing Apps Script project, `clasp clone` it to a
+  scratch dir first, diff, and bring every necessary file into this
+  repo before the first push. See `doc/apps-script-deploy.md` →
+  *Adopting a pre-existing script*.
 - **Single changelog rule applies here too.** Don't add a
   `calling_sheet/CHANGELOG.md`.
 

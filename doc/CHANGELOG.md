@@ -7,6 +7,20 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — preserve the sheet's existing onOpen trigger
+
+- `calling_sheet/Triggers.gs`: new file holding the pre-existing
+  `onOpen` toast ("Any email forwarding changes made in this
+  spreadsheet will become active within 24 hours."). Added to the repo
+  so `clasp push` doesn't delete it on the remote side.
+- `calling_sheet/README.md`: new *Adopting an existing Apps Script
+  project* section covering the backup-first workflow.
+- `doc/apps-script-deploy.md`: new *Adopting a pre-existing script*
+  section at the top; two new troubleshooting rows for "function
+  disappeared" and "timezone changed".
+- `CLAUDE.md`: `calling_sheet/` file table now lists `Triggers.gs`; new
+  gotcha about `clasp push` being destructive on the remote side.
+
 ## 2026-04-21 — docs pass + CLAUDE.md refresh
 
 - `doc/position-mapping.md`: new. The natural derivation rule, override
