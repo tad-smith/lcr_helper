@@ -295,6 +295,15 @@ function renderCustomRow(entry) {
   );
 }
 
+function renderUnchangedRow(entry) {
+  return h(
+    'div',
+    { class: 'review-row' },
+    h('span', { class: 'row-title' }, entry.calling.id),
+    h('div', { class: 'row-before' }, entry.row.emails.join(', ') || h('i', null, '(empty)')),
+  );
+}
+
 function renderMissingRow(entry) {
   const c = entry.calling;
   const label = c.id + (c.isVacant ? ' (vacant)' : '');
@@ -363,6 +372,16 @@ function openReviewModal({ snapshot, diff, settings, ctx }) {
   );
   for (const e of diff.vacates) vacatesSection.appendChild(renderDiffRow(e, true));
   if (diff.vacates.length > 0) body.appendChild(vacatesSection);
+
+  if (diff.unchanged.length > 0) {
+    const section = h(
+      'details',
+      { class: 'review-section' },
+      h('summary', null, `Unchanged (${diff.unchanged.length}) — informational`),
+    );
+    for (const e of diff.unchanged) section.appendChild(renderUnchangedRow(e));
+    body.appendChild(section);
+  }
 
   if (diff.customOrUnmatched.length > 0) {
     const section = h(

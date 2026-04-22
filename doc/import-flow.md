@@ -74,6 +74,7 @@ The modal looks roughly like this:
 ║   ☑ Primary Presidency:Primary-Secretary                     ║
 ║      - brittanylee.herman@gmail.com                          ║
 ║      + (empty — person released)                             ║
+║ ▶ Unchanged (23)             — informational, read-only      ║
 ║ ▶ Custom or Unmatched (3)    — informational, read-only      ║
 ║ ▶ In LCR but not in sheet (12) — informational, read-only    ║
 ╠══════════════════════════════════════════════════════════════╣
@@ -87,6 +88,7 @@ Section meanings:
 |---------|---------------|-----------|
 | **Updates** | Row's email list will change, but the calling still has someone in LCR. | ✅ |
 | **Vacating** | LCR no longer has any holder for this calling. All personal emails on the row will be dropped (internal-domain aliases are preserved). | ✅ |
+| **Unchanged** | Sheet already matches LCR for this calling. Shown for auditability; not modified. | ❌ |
 | **Custom or Unmatched** | Row's `Position` value didn't match any known LCR calling. Always left alone. | ❌ |
 | **In LCR but not in sheet** | LCR has this calling but no sheet row tracks it. If you want it tracked, add a row by hand (see [`sheet-setup.md`](./sheet-setup.md)). | ❌ |
 

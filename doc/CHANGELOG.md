@@ -7,6 +7,14 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — review modal: add Unchanged section
+
+- `extension/callings-sheet-import.js`: review modal now renders a
+  fourth informational section, "Unchanged (N)", between *Vacating*
+  and *Custom or Unmatched*. Collapsed by default; read-only;
+  shows `calling.id` and the row's current email list per row.
+- `doc/import-flow.md`: section table and ASCII rendering updated.
+
 ## 2026-04-21 — _position_overrides is global (drop ward_code column)
 
 Behavior change. Sheet schema change.
