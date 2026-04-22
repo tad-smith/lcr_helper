@@ -46,8 +46,9 @@ Read this first; subsystem docs assume the vocabulary defined here.
 - **`_config` tab** — maps `ward_code ↔ ward_name ↔ internal_domain`. The
   ward name is what LCR's UI displays and what
   `extension/content-script.js::extractUnitName` returns.
-- **`_position_overrides` tab** — explicit `(ward_code, sheet_position) → lcr_id`
-  mappings for rows where the natural derivation doesn't fit.
+- **`_position_overrides` tab** — explicit `sheet_position → lcr_id`
+  mappings (un-prefixed position, global across all wards) for rows
+  where the natural derivation doesn't fit.
 - **`lcr_id`** — string of the form `Organization:Calling-With-Dashes`, as
   produced by `extension/common.js::mergeCallings`. Example:
   `Bishopric:Ward-Executive-Secretary`. Both the extension and the server

@@ -32,7 +32,7 @@ function handleSnapshot(wardName) {
 
   var wardCode = wardMeta.ward_code;
   var internalDomain = wardMeta.internal_domain;
-  var overrides = (config.overrides && config.overrides[wardCode]) || {};
+  var overrides = config.overrides || {};
 
   var ss = getTargetSpreadsheet();
   var tab = ss.getSheetByName(wardCode);
@@ -81,25 +81,30 @@ function handleSnapshot(wardName) {
  * Compute the lcr_id for a sheet row.
  *
  * Priority:
- *   1. Exact override from _position_overrides for (ward_code, position).
- *   2. Natural derivation: if position starts with `<ward_code> `, strip the
- *      prefix and produce `organization + ":" + rest.replaceAll(" ", "-")`.
- *   3. Fallback: lcr_id = null. The extension will classify the row as
- *      CUSTOM_OR_UNMATCHED.
+ *   1. Strip `<ward_code> ` from the start of `position` if present; call
+ *      the remainder `rest`. If no prefix, `rest = position`.
+ *   2. If `rest` appears in `_position_overrides`, use that mapping. The
+ *      overrides map is global — one mapping applies across every ward.
+ *   3. Else if the original `position` had the `<ward_code> ` prefix,
+ *      derive naturally: `organization + ":" + rest.replaceAll(" ", "-")`.
+ *   4. Else fall through to `lcr_id = null`. The extension classifies the
+ *      row as CUSTOM_OR_UNMATCHED.
  */
 function deriveLcrId(organization, position, wardCode, overrides) {
-  if (overrides && Object.prototype.hasOwnProperty.call(overrides, position)) {
-    return { lcr_id: overrides[position], override_applied: true };
-  }
   var prefix = wardCode + ' ';
-  if (position.indexOf(prefix) === 0) {
-    var rest = position.substring(prefix.length);
-    if (organization && rest) {
-      return {
-        lcr_id: organization + ':' + rest.replace(/ /g, '-'),
-        override_applied: false,
-      };
-    }
+  var hasWardPrefix = position.indexOf(prefix) === 0;
+  var rest = hasWardPrefix ? position.substring(prefix.length) : position;
+
+  if (overrides && Object.prototype.hasOwnProperty.call(overrides, rest)) {
+    return { lcr_id: overrides[rest], override_applied: true };
   }
+
+  if (hasWardPrefix && organization && rest) {
+    return {
+      lcr_id: organization + ':' + rest.replace(/ /g, '-'),
+      override_applied: false,
+    };
+  }
+
   return { lcr_id: null, override_applied: false };
 }

@@ -52,17 +52,18 @@ Examples for `ward_code = "CO"`:
 Some sheet labels don't match the natural derivation. That's what
 `_position_overrides` is for:
 
-| ward_code | sheet_position | lcr_id |
-|-----------|----------------|--------|
-| CO | CO Young Women Advisors | `Young Women:Young-Women-Class-Adviser` |
-| CO | CO Aaronic Priesthood Specialists | `Aaronic Priesthood:Aaronic-Priesthood-Specialist` |
-| CO | CO Email Communication Specialist / Bulletin | `Technology:Email-Communication-Specialist` |
+| sheet_position | lcr_id |
+|----------------|--------|
+| Young Women Advisors | `Young Women:Young-Women-Class-Adviser` |
+| Aaronic Priesthood Specialists | `Aaronic Priesthood:Aaronic-Priesthood-Specialist` |
+| Email Communication Specialist / Bulletin | `Technology:Email-Communication-Specialist` |
 
 Rules:
 
-- The override is keyed by `(ward_code, sheet_position)`, both matched
-  as trimmed strings.
-- The match on `sheet_position` is exact and case-sensitive.
+- `sheet_position` is the Position value with the active ward's
+  `<ward_code> ` prefix stripped. The override applies to **every**
+  ward — one mapping covers all of them.
+- Matching is trimmed + exact + case-sensitive.
 - When an override fires, the snapshot response marks
   `override_applied: true` for that row.
 - An override always wins over natural derivation.
@@ -71,8 +72,8 @@ Rules:
 
 A row is *Custom / Unmatched* when either:
 
-1. The position does not start with `<ward_code> `, AND has no
-   override (so the derivation returns `null`); or
+1. The position does not start with `<ward_code> `, AND its un-prefixed
+   form has no override entry (so the derivation returns `null`); or
 2. The derivation returns an id that doesn't appear in the extension's
    scraped `collapsedCallings` (maps to nothing LCR knows about).
 

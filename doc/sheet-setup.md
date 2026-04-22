@@ -47,23 +47,26 @@ Notes:
 
 ## `_position_overrides` tab
 
-Row 1 is the header. Columns:
+Row 1 is the header. Two columns:
 
 | Column | Field | Description |
 |--------|-------|-------------|
-| A | `ward_code` | Matches a `ward_code` in `_config`. |
-| B | `sheet_position` | The literal value from column C of a ward tab, including the ward prefix. |
-| C | `lcr_id` | The calling id the override points to. Form: `Organization:Calling-With-Dashes`. |
+| A | `sheet_position` | The Position cell value **with the `<ward_code> ` prefix stripped** — e.g., `Young Women Advisors`, not `CO Young Women Advisors`. |
+| B | `lcr_id` | The calling id the override points to. Form: `Organization:Calling-With-Dashes`. |
+
+One mapping applies to every ward. The server strips the active ward's
+`ward_code ` prefix from the row's Position value and looks the
+remainder up in this flat table.
 
 Use an override any time the `Position` string on the sheet does not
 correspond to the natural derivation rule (see
 [`position-mapping.md`](./position-mapping.md)). Examples:
 
-| ward_code | sheet_position                                | lcr_id                                                |
-|-----------|-----------------------------------------------|-------------------------------------------------------|
-| CO        | CO Young Women Advisors                       | Young Women:Young-Women-Class-Adviser                 |
-| CO        | CO Aaronic Priesthood Specialists             | Aaronic Priesthood:Aaronic-Priesthood-Specialist      |
-| CO        | CO Email Communication Specialist / Bulletin  | Technology:Email-Communication-Specialist             |
+| sheet_position                             | lcr_id                                            |
+|--------------------------------------------|---------------------------------------------------|
+| Young Women Advisors                       | Young Women:Young-Women-Class-Adviser             |
+| Aaronic Priesthood Specialists             | Aaronic Priesthood:Aaronic-Priesthood-Specialist  |
+| Email Communication Specialist / Bulletin  | Technology:Email-Communication-Specialist         |
 
 There is no override for a "custom" row (one with no LCR counterpart).
 Leave those rows without an override; the extension will classify them as

@@ -7,6 +7,27 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — _position_overrides is global (drop ward_code column)
+
+Behavior change. Sheet schema change.
+
+- `_position_overrides` now has two columns: `sheet_position`,
+  `lcr_id`. The `ward_code` column is dropped. `sheet_position` is the
+  calling name **with the ward_code prefix stripped** (e.g.,
+  `Young Women Advisors`, not `CO Young Women Advisors`). One mapping
+  applies across every ward.
+- `calling_sheet/Config.gs`: `config.overrides` is now a flat
+  `{sheet_position: lcr_id}` dictionary; no per-ward sub-map.
+- `calling_sheet/Snapshot.gs::deriveLcrId`: strip `<ward_code> ` first,
+  then look the remainder up in the flat overrides map, then fall
+  through to natural derivation.
+- `doc/sheet-setup.md`, `doc/position-mapping.md`,
+  `doc/architecture.md`: updated to match.
+
+Migration: on the `_position_overrides` tab, delete the leftmost
+column and strip the `<ward_code> ` prefix from each entry in what is
+now column A.
+
 ## 2026-04-21 — add Debug.gs with debugConfig / debugSnapshot
 
 - `calling_sheet/Debug.gs`: editor-run helpers for isolating code

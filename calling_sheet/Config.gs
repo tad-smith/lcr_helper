@@ -14,9 +14,13 @@ var CONFIG_CACHE_TTL_SECONDS = 300;
  * Returns:
  *   {
  *     wards: { [ward_name]: { ward_code, internal_domain } },
- *     overrides: { [ward_code]: { [sheet_position]: lcr_id } },
+ *     overrides: { [sheet_position]: lcr_id },
  *     ward_by_code: { [ward_code]: { ward_name, internal_domain } }
  *   }
+ *
+ * `sheet_position` keys in `overrides` are the un-prefixed calling names
+ * (the `ward_code ` prefix, if any, is stripped by the caller before
+ * lookup). One mapping applies to every ward.
  *
  * All keys/values trimmed. Blank rows skipped. Leading/trailing whitespace
  * tolerated in every column.
@@ -77,16 +81,14 @@ function readConfigFromSheet(ss) {
     var overrideRows = overridesSheet.getDataRange().getValues();
     for (var j = 1; j < overrideRows.length; j++) {
       var or = overrideRows[j];
-      var wc = trim(or[0]);
-      var sp = trim(or[1]);
-      var li = trim(or[2]);
-      if (!wc && !sp && !li) continue;
-      if (!wc || !sp || !li) {
+      var sp = trim(or[0]);
+      var li = trim(or[1]);
+      if (!sp && !li) continue;
+      if (!sp || !li) {
         logEvent('WARN', 'Skipping incomplete _position_overrides row', { row: j + 1 });
         continue;
       }
-      if (!overrides[wc]) overrides[wc] = {};
-      overrides[wc][sp] = li;
+      overrides[sp] = li;
     }
   }
 
