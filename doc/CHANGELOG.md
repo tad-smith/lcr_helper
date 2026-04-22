@@ -7,6 +7,13 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — add Debug.gs with debugConfig / debugSnapshot
+
+- `calling_sheet/Debug.gs`: editor-run helpers for isolating code
+  correctness from deployment staleness when an import fails.
+  `debugConfig()` prints the ward names/codes visible to `getConfig()`;
+  `debugSnapshot()` prints the snapshot JSON for Cordera Ward.
+
 ## 2026-04-21 — standalone deployment only; SHEET_ID script property
 
 Simplified the deployment model to standalone-only. The Workspace that

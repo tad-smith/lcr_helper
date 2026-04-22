@@ -25,6 +25,7 @@ calling_sheet/
 ├── Snapshot.gs              # Snapshot endpoint
 ├── Apply.gs                 # Apply endpoint
 ├── EmailMerge.gs            # Merge algorithm sanity check
+├── Debug.gs                 # Editor-run helpers (debugConfig, debugSnapshot)
 └── README.md                # this file
 ```
 
