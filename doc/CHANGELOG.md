@@ -7,6 +7,11 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — extension version 1.2.0.1
+
+- `extension/manifest.json`: bump to `1.2.0.1` for the Unchanged
+  section addition.
+
 ## 2026-04-21 — review modal: add Unchanged section
 
 - `extension/callings-sheet-import.js`: review modal now renders a
