@@ -22,7 +22,7 @@ function logEvent(level, message, data) {
     // ignore — console may not be available in all contexts
   }
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getTargetSpreadsheet();
     var sheet = ss.getSheetByName(LOG_TAB);
     if (!sheet) {
       sheet = ss.insertSheet(LOG_TAB);

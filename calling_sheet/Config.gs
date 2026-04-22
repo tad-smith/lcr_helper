@@ -22,7 +22,7 @@ var CONFIG_CACHE_TTL_SECONDS = 300;
  * tolerated in every column.
  */
 function getConfig() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getTargetSpreadsheet();
   var lastModified = DriveApp.getFileById(ss.getId()).getLastUpdated().getTime();
   var cacheKey = 'config:' + lastModified;
   var cache = CacheService.getScriptCache();

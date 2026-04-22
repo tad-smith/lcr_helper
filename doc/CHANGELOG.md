@@ -7,6 +7,34 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — standalone deployment only; SHEET_ID script property
+
+Simplified the deployment model to standalone-only. The Workspace that
+owns the sheet blocks anonymous web app deploys, so the web app must
+be owned by a consumer Gmail account that has edit access to the
+sheet and is therefore not container-bound.
+
+- `calling_sheet/Sheet.gs`: new. `getTargetSpreadsheet()` resolves the
+  target sheet via the `SHEET_ID` script property. Throws with a clear
+  message if unset. No fallback — container-bound mode is not
+  supported.
+- `calling_sheet/Config.gs`, `Snapshot.gs`, `Apply.gs`, `Logging.gs`:
+  switch from `SpreadsheetApp.getActiveSpreadsheet()` to
+  `getTargetSpreadsheet()`.
+- `calling_sheet/Triggers.gs`: removed. The container-bound `onOpen`
+  toast on the Workspace-owned sheet stays where it is; we don't
+  manage it.
+- `calling_sheet/.claspignore`: drop the now-unneeded `Triggers.gs`
+  exclusion.
+- `doc/apps-script-deploy.md`: rewritten end-to-end for standalone-
+  only. Removed the dual-mode section and the *Adopting a pre-existing
+  script* section. New troubleshooting row for `SHEET_ID` errors.
+- `calling_sheet/README.md`: trimmed to match.
+- `doc/sheet-setup.md`: mentions `SHEET_ID` script property as a
+  required project-level setting.
+- `CLAUDE.md`: `Triggers.gs` dropped from the file table; new
+  `Sheet.gs` entry; standalone-only gotcha note.
+
 ## 2026-04-21 — extension version 1.2.0.0
 
 - `extension/manifest.json`: bump `version` from `1.1.4.2` to

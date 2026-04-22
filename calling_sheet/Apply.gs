@@ -44,7 +44,7 @@ function handleApply(body) {
     return jsonResponse({ ok: false, error: 'ward_not_configured', ward_name: wardName });
   }
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getTargetSpreadsheet();
 
   // Staleness check: reject if the sheet was modified after the snapshot.
   var lastModified = DriveApp.getFileById(ss.getId()).getLastUpdated().getTime();

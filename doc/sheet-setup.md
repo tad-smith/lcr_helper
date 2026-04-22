@@ -16,6 +16,10 @@ The sheet has three *kinds* of tab:
 Tabs starting with `_` are treated as configuration and are never written to
 by the import flow.
 
+A `SHEET_ID` **script property** is required in the Apps Script project
+(not a sheet tab). See
+[`apps-script-deploy.md`](./apps-script-deploy.md).
+
 ## `_config` tab
 
 Row 1 is the header. Columns:

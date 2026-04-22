@@ -34,7 +34,7 @@ function handleSnapshot(wardName) {
   var internalDomain = wardMeta.internal_domain;
   var overrides = (config.overrides && config.overrides[wardCode]) || {};
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getTargetSpreadsheet();
   var tab = ss.getSheetByName(wardCode);
   if (!tab) {
     return jsonResponse({ ok: false, error: 'ward_tab_missing', ward_code: wardCode });
