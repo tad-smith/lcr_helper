@@ -238,9 +238,16 @@ function emailListAfter(before, after) {
   return parts;
 }
 
+function rowTitle(entry) {
+  if (entry.row && entry.row.override_applied) {
+    return entry.calling.id + ' (' + entry.row.position + ')';
+  }
+  return entry.calling.id;
+}
+
 function renderDiffRow(entry, writable) {
   const hasWarning = entry.warnings && entry.warnings.length > 0;
-  const title = entry.calling.id;
+  const title = rowTitle(entry);
 
   const header = writable
     ? h(
@@ -299,7 +306,7 @@ function renderUnchangedRow(entry) {
   return h(
     'div',
     { class: 'review-row' },
-    h('span', { class: 'row-title' }, entry.calling.id),
+    h('span', { class: 'row-title' }, rowTitle(entry)),
     h('div', { class: 'row-before' }, entry.row.emails.join(', ') || h('i', null, '(empty)')),
   );
 }
