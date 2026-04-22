@@ -2,11 +2,9 @@
  * Settings modal for the calling-sheet import.
  *
  * Persists the web app URL and shared secret to chrome.storage.local under
- * the key `callingSheetSettings`. Exposes a minimal API on
- * window.LCRHelperSettings for callings-sheet-import.js to consume.
+ * the key defined by SETTINGS_STORAGE_KEY (in constants.js). Exposes a
+ * minimal API on window.LCRHelperSettings for callings-sheet-import.js.
  */
-
-const SETTINGS_STORAGE_KEY = 'callingSheetSettings';
 
 /**
  * Read settings from chrome.storage.local.

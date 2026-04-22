@@ -1,27 +1,28 @@
+/*
+ * Runs in the page's JS context (not the extension's isolated world), so
+ * it can monkey-patch window.fetch. Dispatches a CustomEvent that the
+ * content script listens for. The event name must match
+ * LCR_API_DATA_EVENT in extension/constants.js — kept in sync manually
+ * since this file cannot import extension globals.
+ */
 (function () {
-    const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-        const response = await originalFetch(...args);
+  const LCR_API_DATA_EVENT = 'LCR_API_DATA_RECEIVED';
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    const response = await originalFetch(...args);
 
-        // Clone the response so we can read the body without consuming the stream for the original requester
-        const clone = response.clone();
+    let url = args[0];
+    if (url instanceof Request) url = url.url;
 
-        // Check if URL matches the pattern we're interested in
-        // Pattern: https://lcr.churchofjesuschrist.org/mlt/api/orgs?unitNumber=491829
-        let url = args[0];
-        if (url instanceof Request) {
-            url = url.url;
-        }
-        if (url && url.toString().includes('api/orgs')) {
-            clone.json().then(data => {
-                console.log('Intercepted api/orgs data:');
-                console.log(data);
-                window.dispatchEvent(new CustomEvent('LCR_API_DATA_RECEIVED', { detail: data }));
-            }).catch(err => {
-                console.error('Error parsing JSON from intercepted request:', err);
-            });
-        }
+    if (url && url.toString().includes('api/orgs')) {
+      // Clone so the original caller's body stream is untouched.
+      response.clone().json().then((data) => {
+        window.dispatchEvent(new CustomEvent(LCR_API_DATA_EVENT, { detail: data }));
+      }).catch((err) => {
+        console.error('Error parsing JSON from intercepted request:', err);
+      });
+    }
 
-        return response;
-    };
+    return response;
+  };
 })();

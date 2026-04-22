@@ -9,7 +9,12 @@
 
 /**
  * GET handler.
+ *
  * Supported: ?action=snapshot&ward=<ward_name>&secret=<secret>
+ *
+ * Retained for backward compatibility and editor-driven debugging. The
+ * extension itself posts to doPost so the secret never appears in a query
+ * string.
  */
 function doGet(e) {
   try {
@@ -29,17 +34,26 @@ function doGet(e) {
 
 /**
  * POST handler.
- * Supported: ?action=apply  body = JSON {secret, ward_name, operations, generated_at}
+ * Supported:
+ *   ?action=snapshot body = JSON {secret, ward}
+ *   ?action=apply    body = JSON {secret, ward_name, operations, generated_at}
  */
 function doPost(e) {
   try {
     var params = (e && e.parameter) || {};
-    var body = parseJsonBody(e);
+    var parsed = parseJsonBody(e);
+    if (!parsed.ok) {
+      return jsonResponse({ ok: false, error: 'invalid_json_body', message: parsed.error });
+    }
+    var body = parsed.body;
     if (!verifySecret((body && body.secret) || params.secret)) {
       return jsonResponse({ ok: false, error: 'unauthorized' });
     }
     if (params.action === 'apply') {
       return handleApply(body);
+    }
+    if (params.action === 'snapshot') {
+      return handleSnapshot((body && body.ward) || params.ward || '');
     }
     return jsonResponse({ ok: false, error: 'unknown_action', action: String(params.action || '') });
   } catch (err) {
@@ -48,13 +62,18 @@ function doPost(e) {
   }
 }
 
-/** Parse `e.postData.contents` as JSON; return {} if absent or unparseable. */
+/**
+ * Parse `e.postData.contents` as JSON. Returns {ok: true, body} on
+ * success or {ok: false, error} on failure — the specific reason is
+ * preserved so the caller can surface `invalid_json_body` instead of the
+ * generic `internal_error`.
+ */
 function parseJsonBody(e) {
-  if (!e || !e.postData || !e.postData.contents) return {};
+  if (!e || !e.postData || !e.postData.contents) return { ok: true, body: {} };
   try {
-    return JSON.parse(e.postData.contents);
+    return { ok: true, body: JSON.parse(e.postData.contents) };
   } catch (err) {
-    throw new Error('invalid_json_body: ' + err);
+    return { ok: false, error: String(err) };
   }
 }
 

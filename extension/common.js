@@ -1,75 +1,86 @@
+/**
+ * Shared helpers used by the content script and the callings-table page.
+ * Must not depend on `chrome.*` or on any specific DOM — it runs in two
+ * isolated contexts.
+ */
 
+const AARONIC_QUORUM_ADVISER_RE = /^(Priests|Teachers|Deacons) Quorum Adviser$/;
+const AARONIC_QUORUM_SPECIALIST_RE = /^(Priests|Teachers|Deacons) Quorum Specialist$/;
 
 /**
- * Normalizes and standardizes specific calling names based on defined rules.
- * This function checks for several known calling titles and replaces them
- * with a standardized equivalent to ensure consistency across data sets.
- * If no matching rule is found, the original calling name is returned unchanged.
- * 
- * @param {string} calling The raw calling name string extracted from the DOM.
- * @returns {string} The standardized and corrected calling name.
+ * Normalizes and standardizes specific calling names. Returns the input
+ * unchanged if no rule matches. Run BEFORE the lcr_id is computed, so
+ * duplicates across the rewrite rules merge into a single row.
+ *
+ * @param {string} calling The raw calling name from the LCR API.
+ * @returns {string} The standardized calling name.
  */
 function fixCallingName(calling) {
   if (calling === 'Young Single Adult Leader') {
     return 'Young Single Adult Adviser';
-  } 
-  else if (calling.match(/^(Priests|Teachers|Deacons) Quorum Adviser$/)) {
+  }
+  if (AARONIC_QUORUM_ADVISER_RE.test(calling)) {
     return 'Aaronic Priesthood Advisors';
   }
-  else if (calling.match(/^(Priests|Teachers|Deacons) Quorum Specialist$/)
-           || calling === 'Young Men Specialist') {
+  if (AARONIC_QUORUM_SPECIALIST_RE.test(calling) || calling === 'Young Men Specialist') {
     return 'Aaronic Priesthood Specialist';
   }
-  else {
-    return calling;
-  }
+  return calling;
 }
 
 /**
- * Normalizes and standardizes the organization name based on the specific calling title.
- * This function is primarily used to ensure that callings related to youth
- * organizations are consistently grouped under a standardized parent name,
- * regardless of the specific organization name found in the DOM. If the
- * calling does not match a standardization rule, the original organization
- * name is returned.
+ * Normalizes the organization name so related callings roll up under a
+ * single parent. Returns the input unchanged if no rule matches.
  *
- * @param {string} calling The standardized calling name (e.g., from fixCallingName).
- * @param {string} organization The raw organization name extracted from the parent element.
- * @returns {string} The standardized organization name (e.g., "Young Women"),
- * or the original organization name if no rule matches.
+ * @param {string} calling The standardized calling name (post-fixCallingName).
+ * @param {string} organization The raw organization name.
+ * @returns {string} The standardized organization name.
  */
 function fixOrganizationName(calling, organization) {
   if (calling === 'Aaronic Priesthood Advisors' || calling === 'Aaronic Priesthood Specialist') {
     return 'Aaronic Priesthood';
   }
-  else if (calling === 'Young Women Class Adviser' || calling === 'Young Women Specialist') {
+  if (calling === 'Young Women Class Adviser' || calling === 'Young Women Specialist') {
     return 'Young Women';
   }
-  else {
-    return organization;
-  }
+  return organization;
 }
 
 /**
- * Merges objects in an array that share the same 'id' attribute,
- * regardless of their position. The emails from all grouped objects are
- * concatenated, and the properties of the FIRST encountered object are retained.
+ * Sentinel strings the email-fetching code uses when an address is
+ * unavailable. These are treated as "no email" for merging.
+ */
+const EMAIL_SENTINELS = new Set(['', 'N/A', 'Error']);
+
+function isRealEmail(s) {
+  return !!s && !EMAIL_SENTINELS.has(s);
+}
+
+/**
+ * Collapses callings that share the same lcr_id.
  *
- * @param {Array<Object>} callings - Array of objects, each expected to have 'calling', 'email', and 'isVacant' properties.
- * @returns {Array<Object>} A new array containing the merged/grouped objects.
+ * Singletons (only one calling for an id) pass through with their
+ * original `email` intact — including the diagnostic sentinels `'N/A'`
+ * (no email on file at LCR) and `'Error'` (fetch failed), which the
+ * table renders so the user can see the state.
+ *
+ * Merged groups (2+ real callings for the same id) have their emails
+ * concatenated with commas. Sentinels are filtered out of the merge
+ * only, so we don't produce malformed strings like `",foo@bar"` or
+ * `"N/A,foo@bar"`. The non-sentinel emails from every merged calling
+ * are preserved.
+ *
+ * @param {Array<Object>} callings Array of calling objects with `calling`,
+ *     `organization`, `isVacant`, and (optionally) `email`.
+ * @returns {Array<Object>} The merged list in original iteration order.
  */
 function mergeCallings(callings) {
-  console.log(callings);
   if (!callings || callings.length === 0) return [];
 
-  // Use a Map to group callings. Keys are the unique calling strings.
   const callingGroups = new Map();
 
   for (const currentItem of callings) {
-    const newGroup = {
-      ...currentItem,
-      multiplePeople: false // Default state
-    };
+    const newGroup = { ...currentItem, multiplePeople: false };
     newGroup.calling = fixCallingName(newGroup.calling);
     newGroup.organization = fixOrganizationName(newGroup.calling, newGroup.organization);
     newGroup.id = newGroup.organization + ':' + newGroup.calling.replaceAll(' ', '-');
@@ -77,37 +88,42 @@ function mergeCallings(callings) {
     const key = newGroup.id;
     if (!callingGroups.has(key)) {
       callingGroups.set(key, newGroup);
-    } else {
-      // 2. Found a duplicate calling: Merge the data into the existing group.
-
-      // Retrieve the existing group object
-      let existingGroup = callingGroups.get(key);
-
-      // Skip merging if the current item is vacant (based on your original logic)
-      if (currentItem.isVacant) {
-          continue;
-      }
-
-      // If the first calling encountered was vacant, then let's replace it
-      if (existingGroup.isVacant) {
-        callingGroups.set(key, newGroup);
-      } else {
-        // Concatenate the email address
-        existingGroup.email += `,${currentItem.email}`;
-
-        // Flag that this group contained multiple items
-        existingGroup.multiplePeople = true;
-
-        // Increment the count of people in this calling
-        const currentCount = existingGroup.numberOfPeople || 1;
-        existingGroup.numberOfPeople = currentCount + 1;
-      }
-
-      // Note: All other properties (like isVacant, etc.) remain those of the first object encountered.
+      continue;
     }
+
+    const existingGroup = callingGroups.get(key);
+
+    // A vacant row is never merged over a real row.
+    if (currentItem.isVacant) continue;
+
+    // A real row replaces a vacant first-seen row entirely.
+    if (existingGroup.isVacant) {
+      callingGroups.set(key, newGroup);
+      continue;
+    }
+
+    // Both real — start tracking real emails only (sentinels dropped).
+    // Lazy-initialized so we only pay this cost when an id actually
+    // merges, which lets singletons keep their original .email above.
+    if (!existingGroup._emailList) {
+      existingGroup._emailList = isRealEmail(existingGroup.email)
+        ? [existingGroup.email]
+        : [];
+    }
+    if (isRealEmail(currentItem.email)) {
+      existingGroup._emailList.push(currentItem.email);
+    }
+    existingGroup.multiplePeople = true;
+    existingGroup.numberOfPeople = (existingGroup.numberOfPeople || 1) + 1;
   }
 
-  // Convert the Map values back into a final array
+  // Rebuild .email from the filtered list only for groups that merged.
+  // Singletons have no _emailList and keep their original .email.
+  for (const group of callingGroups.values()) {
+    if (group._emailList) {
+      group.email = group._emailList.join(',');
+      delete group._emailList;
+    }
+  }
   return Array.from(callingGroups.values());
 }
-

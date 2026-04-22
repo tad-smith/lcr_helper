@@ -125,14 +125,41 @@ function computeDiff(snapshot, collapsedCallings) {
 
 /* ───────── Network ───────── */
 
+const REQUEST_TIMEOUT_MS = 30000;
+
+/**
+ * fetch wrapper that aborts after REQUEST_TIMEOUT_MS so a hung Apps Script
+ * worker can't leave the UI stuck on "Loading…".
+ */
+async function fetchWithTimeout(url, init) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error(`request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * POSTs the snapshot request with the secret in the body, not the URL.
+ * Keeping the secret out of the query string avoids leaking it into
+ * Google's access logs and the browser's Referer header.
+ * text/plain avoids a CORS preflight — Apps Script doesn't handle OPTIONS.
+ */
 async function fetchSnapshot(webAppUrl, secret, ward) {
-  const url =
-    webAppUrl +
-    '?action=snapshot&ward=' +
-    encodeURIComponent(ward) +
-    '&secret=' +
-    encodeURIComponent(secret);
-  const resp = await fetch(url, { method: 'GET', redirect: 'follow' });
+  const body = { secret, ward };
+  const resp = await fetchWithTimeout(webAppUrl + '?action=snapshot', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    redirect: 'follow',
+  });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   return resp.json();
 }
@@ -144,8 +171,7 @@ async function postApply(webAppUrl, secret, wardName, operations, generatedAt) {
     operations,
     generated_at: generatedAt,
   };
-  // text/plain avoids a CORS preflight — Apps Script doesn't handle OPTIONS.
-  const resp = await fetch(webAppUrl + '?action=apply', {
+  const resp = await fetchWithTimeout(webAppUrl + '?action=apply', {
     method: 'POST',
     body: JSON.stringify(body),
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },

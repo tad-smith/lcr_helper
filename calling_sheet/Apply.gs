@@ -46,9 +46,11 @@ function handleApply(body) {
 
   var ss = getTargetSpreadsheet();
 
-  // Staleness check: reject if the sheet was modified after the snapshot.
+  // Staleness check: reject if the sheet was modified at or after the
+  // snapshot. `>=` (not `>`) so a write that lands on the exact same
+  // millisecond as the snapshot still rejects.
   var lastModified = DriveApp.getFileById(ss.getId()).getLastUpdated().getTime();
-  if (lastModified > snapshotTime) {
+  if (lastModified >= snapshotTime) {
     logEvent('INFO', 'stale_snapshot rejected', {
       ward: wardMeta.ward_code,
       snapshot: body.generated_at,

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LCR Helper",
-  "version": "1.2.0.2",
+  "version": "1.2.1.1",
   "description": "A extension with utilities for LCR.",
   "icons": {
     "16": "images/jesus_icon16.png",
@@ -23,6 +23,7 @@
         "https://lcr.churchofjesuschrist.org/mlt/orgs*"
       ],
       "js": [
+        "constants.js",
         "utils.js",
         "common.js",
         "content-script.js"

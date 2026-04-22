@@ -7,6 +7,84 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-21 — extension version 1.2.1.1
+
+- `extension/manifest.json`: bump to `1.2.1.1` for the singleton
+  email-sentinel preservation fix in `common.js`.
+
+## 2026-04-21 — review fixes (bugs 1–10, 12–27)
+
+Batch of correctness, security, and code-hygiene fixes identified by a
+code review. Each entry names the file it touches.
+
+- `extension/generated-table-script.js`: `handleCollapseCallings` now
+  writes `settings.currentState.collapseCallings` and saves to storage —
+  prior versions dropped the toggle on reload. `applySettingsToUI` also
+  restores the `hide-vacant-callings` checkbox state, which was
+  previously only half-wired (the setting was obeyed but the checkbox
+  wasn't synced). Split `decodeUrlParameter` into `readUrlString` and
+  `readUrlJson`. Replaced `alert`/`confirm` with toasts and a custom
+  `confirmDialog` that renders into `#sheet-confirm-modal`. Rebuilt the
+  person column without `innerHTML` to close a latent XSS vector.
+  `updateCurrentFilter` now refreshes the dropdown and emits a success
+  toast. Removed stray `console.log` calls; tightened JSDoc.
+- `extension/content-script.js`: fixed a null-pointer crash in
+  `extractUnitName` when walking past `<html>`. Set
+  `button.disabled = true` during extraction (was `false`). Added a
+  "data not ready" guard for the race where the button fires before the
+  interceptor has captured an `api/orgs` response. Added a concurrency
+  cap (`EMAIL_FETCH_CONCURRENCY = 8`) around member-card fetches.
+- `extension/callings-table.html`: `<tbody />` self-close replaced with
+  a proper closing tag — HTML5 does not allow self-closing for non-void
+  elements, and the malformed tag was silently making the Count `<div>`
+  a descendant of `<tbody>`. Added a `<script>` for `constants.js` and a
+  `#sheet-confirm-modal` scaffold.
+- `extension/background.js`: dropped the double `encodeURIComponent` on
+  query-string params — `URLSearchParams.set` already percent-encodes.
+  Renamed `openNewTabWithHTML` → `openCallingsTableTab` for honesty.
+- `extension/common.js`: merged groups now accumulate real emails into
+  a list and `join(',')` at the end, filtering `''`, `'N/A'`, and
+  `'Error'` sentinels — eliminates leading-comma / `"N/A,foo@bar"`
+  output in the rendered table and clipboard export. Singletons (ids
+  that never merged) keep their original `.email` untouched so the
+  `'N/A'` / `'Error'` diagnostic strings still surface in the table
+  for assigned-but-unresolved callings. `.match()` checks converted
+  to `.test()`.
+- `extension/utils.js`: removed the IE `styleSheet.cssText` branch;
+  `addExtensionStyles` is now guarded by a sentinel id so SPA remounts
+  don't stack duplicate `<style>` nodes.
+- `extension/callings-sheet-import.js`: snapshot is now POST with the
+  secret in the body — the prior GET leaked it into Google's access
+  logs and any Referer header. Introduced `fetchWithTimeout` (30 s)
+  around both snapshot and apply so a hung Apps Script worker no longer
+  leaves the UI stuck on "Loading…".
+- `extension/constants.js`: new. Centralizes `LCR_API_DATA_EVENT`,
+  `MSG_OPEN_CALLINGS_TABLE`, `SETTINGS_STORAGE_KEY`, etc. Loaded via
+  manifest `content_scripts`, `importScripts` in the service worker,
+  and a `<script>` tag in `callings-table.html`. Interceptor keeps its
+  own local constant (page-world context can't see extension globals).
+- `extension/interceptor.js`: named the event constant locally to
+  document the sync-with-constants.js requirement; trimmed the chatter.
+- `extension/callings-sheet-settings.js`: drops its local
+  `SETTINGS_STORAGE_KEY` declaration — now sourced from
+  `constants.js`.
+- `extension/manifest.json`: `constants.js` added to content_scripts.
+  Version → `1.2.1.0`.
+- `calling_sheet/Code.gs`: `doPost` now routes `action=snapshot` too,
+  reading ward from the body; `parseJsonBody` returns a discriminated
+  result so the specific `invalid_json_body` error reaches the caller
+  instead of collapsing to `internal_error`.
+- `calling_sheet/Apply.gs`: staleness check now uses `>=` to catch
+  exact-ms-match edits that the strict `>` would admit. A first pass at
+  this change tried to floor the snapshot timestamp to whole seconds;
+  that over-rejected legitimate applies whenever a pre-snapshot edit or
+  an internal `_log` write landed in the same wall-clock second as the
+  snapshot, and was reverted.
+- `calling_sheet/Snapshot.gs`: added a comment documenting that emails
+  on fully-blank-header rows are invisible to the diff.
+- `calling_sheet/Sheet.gs`: comment clarifying that the cached
+  spreadsheet reference is per-execution, not cross-request.
+
 ## 2026-04-21 — extension version 1.2.0.2
 
 - `extension/manifest.json`: bump to `1.2.0.2` for the override row

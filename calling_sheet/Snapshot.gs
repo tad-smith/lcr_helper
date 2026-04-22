@@ -47,7 +47,12 @@ function handleSnapshot(wardName) {
     var raw = values[i];
     var organization = trim(raw[ORG_COLUMN - 1]);
     var position = trim(raw[POS_COLUMN - 1]);
-    if (!organization && !position) continue;  // fully blank — skip
+    // Skip rows with blank organization AND blank position. Any emails
+    // in such a row are NOT returned in the snapshot and are therefore
+    // invisible to the diff — `verifyInternalAliasesPreserved` in
+    // Apply.gs cannot protect them. Don't leave orphan emails on rows
+    // with no position.
+    if (!organization && !position) continue;
 
     var emails = [];
     for (var c = FIRST_EMAIL_COLUMN - 1; c < raw.length; c++) {

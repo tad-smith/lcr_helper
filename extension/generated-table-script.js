@@ -73,71 +73,47 @@ let settings = {
 };
 
 /** Global Constants */
-const callings = decodeUrlParameter('callings', true);
+const callings = readUrlJson('callings');
 const collapsedCallings = mergeCallings(callings);
-const ward = decodeUrlParameter('ward', false);
+const ward = readUrlString('ward');
 
 // Expose page context for sibling scripts (callings-sheet-import.js).
 // `const` at script top-level is not automatically attached to `window`.
 window.LCRHelper = { callings, collapsedCallings, ward };
 
 /**
- * Reads a URL parameter that is an encoded JSON array, decodes it, 
- * and parses it back into a JavaScript array of objects.
- *
- * @param {string} paramName - The name of the URL parameter (e.g., 'data').
- * @returns {Array<Object> | null} The decoded array of objects, or null if the parameter is missing or invalid.
+ * Reads a URL query parameter and returns its decoded string value, or
+ * null if the parameter is absent. URLSearchParams already handles the
+ * percent-decoding.
  */
-function decodeUrlParameter(paramName, isJson) {
+function readUrlString(paramName) {
+  const raw = new URLSearchParams(window.location.search).get(paramName);
+  return raw == null ? null : raw;
+}
+
+/**
+ * Reads a URL query parameter whose value is a JSON-encoded array. Returns
+ * null if the parameter is missing, unparseable, or not an array.
+ */
+function readUrlJson(paramName) {
+  const raw = readUrlString(paramName);
+  if (raw == null) return null;
   try {
-    // 1. Get the current URL's query string parameters
-    // We use window.location.search to get the part of the URL starting with '?'
-    const urlParams = new URLSearchParams(window.location.search);
-
-    // 2. Get the value of the specified parameter
-    const encodedValue = urlParams.get(paramName);
-
-    if (!encodedValue) {
-      // Return null if the parameter isn't present
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      console.error('Decoded parameter is not an array:', parsed);
       return null;
     }
-
-    // 3. URL Decode the string
-    // The browser's URLSearchParams.get() often handles the basic decoding automatically, 
-    // but using decodeURIComponent ensures robustness against complex encoding.
-    const decodedString = decodeURIComponent(encodedValue);
-
-    if (!isJson) {
-      return decodedString;
-    }
-
-    // 4. JSON Parse the resulting string back into an array/object
-    const jsonArray = JSON.parse(decodedString);
-
-    // Ensure the result is an array before returning
-    if (Array.isArray(jsonArray)) {
-      return jsonArray;
-    } else {
-      console.error("Decoded parameter is not an array:", jsonArray);
-      return null;
-    }
-
+    return parsed;
   } catch (error) {
-    // Catch errors during parsing (e.g., if the URL parameter was corrupted)
-    console.error("Error decoding or parsing URL parameter:", error);
+    console.error('Error parsing URL parameter', paramName, error);
     return null;
   }
 }
 
 /**
- * Updates the web page's title and the text content of all elements 
+ * Updates the web page's title and the text content of all elements
  * with the class 'ward-name' to the provided organizational unit name.
- * * This function is used to dynamically inject the contextually relevant
- * unit (Ward or Branch) name into various parts of the user interface.
- *
- * @param {string} ward The name of the organizational unit (Ward or Branch) 
- * to be applied across the page.
- * @returns {void}
  */
 function applyWard(ward) {
   document.title = ward;
@@ -149,73 +125,44 @@ function applyWard(ward) {
 }
 
 /**
- * Locates the table body element with the fixed ID 'callings-table-body' 
- * and removes all of its child row elements (<tr>).
- * * This effectively clears the display of the callings table without removing 
- * the <tbody> container itself.
- * * @returns {void}
+ * Clears all rendered <tr> rows from the callings table body.
  */
 function clearCallingsTable() {
   const tbody = document.getElementById('callings-table-body');
-
   if (tbody) {
-    // The preferred and most performant way to remove all children
-    // is to set the innerHTML property to an empty string.
     tbody.innerHTML = '';
-    console.log("Successfully cleared all rows from 'callings-table-body'.");
   } else {
     console.warn("Could not find table body element with ID 'callings-table-body'.");
   }
 }
 
 /**
- * Generates and appends rows to the 'callings-table-body' <tbody> element
- * based on an array of calling objects.
- * * This function handles row creation, sets unique row IDs based on calling data, 
- * applies initial visibility filters based on 'only-show-selected-columns' and the 
- * global 'settings.selectedCallings' array, and attaches a row visibility toggle 
- * listener to each row's checkbox.
+ * Renders each calling as a <tr> and appends it to 'callings-table-body'.
+ * Initial row visibility follows the current settings (onlyShowSelected,
+ * hideVacantCallings). Each row's checkbox is wired up to toggleSelected
+ * so the user can include/exclude it interactively.
  *
- * @param {Array<Object>} callings An array of calling objects to be displayed.
- * @param {string} callings.id The unique identifier for the calling (used as row ID).
- * @param {string} callings.organization The organization name.
- * @param {string} callings.calling The specific calling title.
- * @param {boolean} callings.isVacant True if the calling is vacant.
- * @param {boolean} [callings.multiplePeople] True if the calling has multiple people assigned (merged).
- * @param {string} [callings.profileLink] The URL to the person's profile, if assigned.
- * @param {string} [callings.person] The name of the person assigned, if assigned.
- * @param {string} [callings.email] The email address(es) associated with the calling.
- * @returns {void}
- * * @global {Object} settings - Expected to contain {Array<string>} selected for initial filtering.
- * @global {function} toggleSelected - The event listener function to attach to the row-selector checkbox.
- * @fires {function} updateVisibleRowCount - Called after all rows are appended to update the displayed row count.
+ * @param {Array<Object>} callings Merged/fixed calling objects to render.
  */
 function appendCallingsTable(callings) {
-  // 1. Create the <table> element
   const tbody = document.getElementById('callings-table-body');
   const onlyShowSelected = settings.currentState.onlyShowSelected;
   const hideVacant = settings.currentState.hideVacantCallings;
+  const selectedSet = new Set(settings.currentState.selectedCallings);
 
-  // Append Calling rows to table
   callings.forEach(calling => {
     const row = document.createElement('tr');
     row.id = calling.id;
 
-    // Tag row with vacant status for easier filtering later
     if (calling.isVacant) {
       row.classList.add('vacant-row');
     }
 
-    // Determine Visibility
-    let isSelected = settings.currentState.selectedCallings.indexOf(row.id) !== -1;
+    const isSelected = selectedSet.has(row.id);
     let shouldHide = false;
-
     if (onlyShowSelected && !isSelected) shouldHide = true;
     if (hideVacant && calling.isVacant) shouldHide = true;
-
-    if (shouldHide) {
-      row.className += ' hidden-row'; // Append class
-    }
+    if (shouldHide) row.classList.add('hidden-row');
 
     const selectedCol = document.createElement('td');
     const checkbox = document.createElement('input');
@@ -227,37 +174,39 @@ function appendCallingsTable(callings) {
     row.append(selectedCol);
 
     const orgCol = document.createElement('td');
-    orgCol.textContent = `${calling.organization}`;
+    orgCol.textContent = calling.organization;
     row.append(orgCol);
 
     const callingCol = document.createElement('td');
-    callingCol.textContent = `${calling.calling}`;
+    callingCol.textContent = calling.calling;
     row.append(callingCol);
 
     const personCol = document.createElement('td');
-    let person = null;
     if (calling.isVacant) {
-      person = '';
+      personCol.textContent = '';
     } else if (calling.multiplePeople) {
-      person = `<i>Multiple Individuals Called (${calling.numberOfPeople})</i>`;
+      const italic = document.createElement('i');
+      italic.textContent = `Multiple Individuals Called (${calling.numberOfPeople})`;
+      personCol.append(italic);
     } else {
-      person = `<a href="${calling.profileLink}" target="_blank" rel="noopener noreferrer" class="calling-link">${calling.person}</a>`;
+      const link = document.createElement('a');
+      link.href = calling.profileLink || '#';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'calling-link';
+      link.textContent = calling.person || '';
+      personCol.append(link);
     }
-    personCol.innerHTML = `${person}`;
     row.append(personCol);
 
     const emailCol = document.createElement('td');
-    emailCol.textContent = `${calling.email ? calling.email : ''}`
+    emailCol.textContent = calling.email ? calling.email : '';
     row.append(emailCol);
 
     tbody.appendChild(row);
   });
 
-  // Update the row count
   updateVisibleRowCount();
-
-  // 4. Append the fully built table to the document body
-  console.log('Table successfully appended to the DOM.');
 }
 
 /**
@@ -275,29 +224,22 @@ function updateTableVisibility() {
     const isSelected = inputChild.checked;
     const isVacant = tr.classList.contains('vacant-row');
 
-    // Logic: Hide if (OnlyShow is ON AND Not Selected) OR (HideVacant is ON AND Is Vacant)
+    // Hide if (OnlyShow is ON AND Not Selected) OR (HideVacant is ON AND Is Vacant)
     const shouldHide = (onlyShowSelected && !isSelected) || (hideVacant && isVacant);
-
     tr.classList.toggle('hidden-row', shouldHide);
   });
 
   updateVisibleRowCount();
 }
 
-/**
- * Handler for "Show Only Selected" Checkbox
- */
-function handleOnlyShowSelectedColumns(event) {
+function handleOnlyShowSelectedColumns() {
   const checkbox = document.getElementById('only-show-selected-columns');
   settings.currentState.onlyShowSelected = checkbox.checked;
   saveSettingsToStorage();
   updateTableVisibility();
 }
 
-/**
- * Handler for "Hide Vacant Callings" Checkbox
- */
-function handleHideVacantCallings(event) {
+function handleHideVacantCallings() {
   const checkbox = document.getElementById('hide-vacant-callings');
   settings.currentState.hideVacantCallings = checkbox.checked;
   saveSettingsToStorage();
@@ -305,93 +247,48 @@ function handleHideVacantCallings(event) {
 }
 
 /**
- * Handles the change event for an individual row-selector checkbox, controlling 
- * the visibility of its parent table row and persistently saving the state.
- * * This function is designed to be attached as an event listener (e.g., using 
- * addEventListener('change', toggleSelected)) to the checkbox within each table row.
- * It also interacts with the global 'settings' object and Chrome's local storage 
- * to persist the selected status of the row.
- *
- * @this {HTMLInputElement} The checkbox element that triggered the change event.
- * @param {Event} event The DOM event object triggered by the checkbox state change.
- * @returns {void}
- * * @global {Object} settings - Must contain an array named 'selectedCallings' 
- * where the IDs of selected rows are stored.
- * @global {function} updateVisibleRowCount - Required to recalculate and 
- * display the total number of visible rows after visibility changes.
- * @fires {chrome.storage.local.set} Writes the updated 'settings' object to 
- * Chrome local storage.
+ * Handles an individual row checkbox toggle: updates row visibility,
+ * mirrors the change into settings.currentState.selectedCallings, and
+ * persists.
  */
-function toggleSelected(event) {
-  console.log('toggleSelected');
-  console.log(event);
+function toggleSelected() {
   const onlyShowSelected = document.getElementById('only-show-selected-columns');
-
-  // 'this' refers to the checkbox that was clicked
-  // Find the nearest parent <tr> element
   const tableRow = this.closest('tr');
   const callingId = tableRow.id;
 
-  // Toggle the CSS class based on the checked state
-  // If the checkbox is checked (true), the class is removed.
-  // If the checkbox is unchecked (false), the class is added.
   tableRow.classList.toggle('hidden-row', !this.checked && onlyShowSelected.checked);
-
-  // Update the row count
   updateVisibleRowCount();
 
-  // Write changes to storage
-  let index = settings.currentState.selectedCallings.indexOf(callingId);
-  if (this.checked && index == -1) {
+  const index = settings.currentState.selectedCallings.indexOf(callingId);
+  if (this.checked && index === -1) {
     settings.currentState.selectedCallings.push(callingId);
+  } else if (!this.checked && index !== -1) {
+    settings.currentState.selectedCallings.splice(index, 1);
   }
-  else {
-    if (index !== -1) {
-      settings.currentState.selectedCallings.splice(index, 1); // Removes 1 element starting from the found index
-    }
-  }
-  chrome.storage.local.set({ settings: settings });
+  saveSettingsToStorage();
 }
 
 /**
- * Handles the change event for the 'Collapse Callings' checkbox, toggling 
- * the data displayed in the callings table between the full list and a 
- * predefined collapsed list.
- *
- * This function is responsible for the following sequence:
- * 1. Clears all existing rows from the table display.
- * 2. Determines whether to use the global 'collapsedCallings' array or the 
- * global 'callings' array based on the checked state of the 'collapse-callings' checkbox.
- * 3. Appends the selected array of callings to the display table.
- *
- * @param {Event} event The DOM event object triggered by the checkbox state change.
- * @returns {void}
- * @global {function(): void} clearCallingsTable - Required function to remove all <tr> elements from the display.
- * @global {function(Array<Object>): void} appendCallingsTable - Required function to generate and insert new <tr> elements.
- * @global {Array<Object>} collapsedCallings - The predefined array of callings to show when the checkbox is checked.
- * @global {Array<Object>} callings - The original, full array of callings to show when the checkbox is unchecked.
+ * Handles the Collapse Callings checkbox. Swaps the rendered dataset
+ * between the full and collapsed lists, updates the persisted state,
+ * and saves.
  */
-function handleCollapseCallings(event) {
+function handleCollapseCallings() {
+  const checkbox = document.getElementById('collapse-callings');
+  settings.currentState.collapseCallings = checkbox.checked;
+  saveSettingsToStorage();
   clearCallingsTable();
-
-  const showCollapsedCallings = document.getElementById('collapse-callings');
-  appendCallingsTable(showCollapsedCallings.checked ? collapsedCallings : callings);
+  appendCallingsTable(checkbox.checked ? collapsedCallings : callings);
 }
 
 /**
  * Counts the number of <tr> elements within the <tbody> of the table with the ID 'callings-table'
- * that do NOT have the 'hidden-row' class. 
+ * that do NOT have the 'hidden-row' class.
  * The resulting count is then displayed in the span element with the ID 'calling-count'.
  */
 function updateVisibleRowCount() {
-  // The CSS selector to find visible rows
-  // Targets <tr> elements inside the table with the specific ID, excluding those with the 'hidden-row' class.
   const selector = `#callings-table tbody tr:not(.hidden-row)`;
-
-  // Select all matching elements and get the count
   const visibleRows = document.querySelectorAll(selector);
-
-  // Update the text content of the span
   const countSpan = document.getElementById('calling-count');
   if (countSpan) {
     countSpan.textContent = visibleRows.length;
@@ -404,7 +301,6 @@ function updateVisibleRowCount() {
  * UI AND LOGIC FOR SAVED FILTERS
  */
 
-// Helper to check if a name belongs to a system filter
 function isSystemFilter(name) {
   return SYSTEM_FILTERS.some(f => f.name === name);
 }
@@ -413,7 +309,6 @@ function refreshFilterDropdown() {
   const select = document.getElementById('saved-filters-select');
   select.innerHTML = '<option value="">-- Select a Filter --</option>';
 
-  // 1. Add System Filters Group
   if (SYSTEM_FILTERS.length > 0) {
     const optGroup = document.createElement('optgroup');
     optGroup.label = "System Filters";
@@ -429,7 +324,6 @@ function refreshFilterDropdown() {
     select.appendChild(optGroup);
   }
 
-  // 2. Add User Filters Group
   if (settings.savedFilters.length > 0) {
     const optGroup = document.createElement('optgroup');
     optGroup.label = "My Saved Filters";
@@ -443,9 +337,6 @@ function refreshFilterDropdown() {
       optGroup.appendChild(option);
     });
     select.appendChild(optGroup);
-  } else {
-    // Just for consistency if no user filters exist yet
-    // (Optional: You can remove the optgroup logic if you prefer a flat list)
   }
 
   updateFilterButtons();
@@ -461,11 +352,9 @@ function updateFilterButtons() {
   const isSystem = isSystemFilter(selectedName);
 
   if (selectedName) {
-    // If it's a System Filter, disable modification buttons
     deleteBtn.disabled = isSystem;
     updateBtn.style.display = isSystem ? 'none' : 'inline-block';
 
-    // Prevent editing the name of system filters in the input box
     nameInput.value = isSystem ? '' : selectedName;
     if (isSystem) nameInput.placeholder = "System Filter (Read Only)";
 
@@ -478,19 +367,17 @@ function updateFilterButtons() {
 }
 
 function loadFilter(filterName) {
-  // Check System Filters first, then User Filters
   let filter = SYSTEM_FILTERS.find(f => f.name === filterName);
   if (!filter) {
     filter = settings.savedFilters.find(f => f.name === filterName);
   }
-
   if (!filter) return;
 
   settings.currentState = {
     collapseCallings: filter.collapseCallings,
     onlyShowSelected: filter.onlyShowSelected,
-    hideVacantCallings: filter.hideVacantCallings || false, // Load new property
-    selectedCallings: [...filter.selectedCallings], // Deep copy or executed getter
+    hideVacantCallings: filter.hideVacantCallings || false,
+    selectedCallings: [...filter.selectedCallings],
     loadedFilterName: filter.name
   };
 
@@ -498,17 +385,16 @@ function loadFilter(filterName) {
   applySettingsToUI();
 }
 
-function saveNewFilter() {
+async function saveNewFilter() {
   const nameInput = document.getElementById('filter-name-input');
   const name = nameInput.value.trim();
 
   if (!name) {
-    alert("Please enter a filter name.");
+    showToast('Please enter a filter name.', 'error');
     return;
   }
-
   if (isSystemFilter(name)) {
-    alert("You cannot overwrite a System Filter. Please choose a different name.");
+    showToast('Cannot overwrite a System Filter — choose a different name.', 'error');
     return;
   }
 
@@ -522,7 +408,8 @@ function saveNewFilter() {
   };
 
   if (existingIndex !== -1) {
-    if (!confirm(`Filter "${name}" already exists. Overwrite?`)) return;
+    const ok = await confirmDialog(`Filter "${name}" already exists. Overwrite?`);
+    if (!ok) return;
     settings.savedFilters[existingIndex] = newFilter;
   } else {
     settings.savedFilters.push(newFilter);
@@ -531,6 +418,7 @@ function saveNewFilter() {
   settings.currentState.loadedFilterName = name;
   saveSettingsToStorage();
   refreshFilterDropdown();
+  showToast(existingIndex !== -1 ? `Filter "${name}" updated.` : `Filter "${name}" saved.`, 'success');
 }
 
 function updateCurrentFilter() {
@@ -539,7 +427,7 @@ function updateCurrentFilter() {
   if (!name) return;
 
   if (isSystemFilter(name)) {
-    alert("System filters cannot be updated.");
+    showToast('System filters cannot be updated.', 'error');
     return;
   }
 
@@ -553,39 +441,43 @@ function updateCurrentFilter() {
       selectedCallings: [...settings.currentState.selectedCallings]
     };
     saveSettingsToStorage();
+    refreshFilterDropdown();
+    showToast(`Filter "${name}" updated.`, 'success');
   }
 }
 
-function deleteFilter() {
+async function deleteFilter() {
   const select = document.getElementById('saved-filters-select');
   const name = select.value;
-
   if (!name) return;
 
   if (isSystemFilter(name)) {
-    alert("System filters cannot be deleted.");
+    showToast('System filters cannot be deleted.', 'error');
     return;
   }
 
-  if (!confirm(`Are you sure you want to delete filter "${name}"?`)) return;
+  const ok = await confirmDialog(`Delete filter "${name}"?`);
+  if (!ok) return;
 
   settings.savedFilters = settings.savedFilters.filter(f => f.name !== name);
-
   if (settings.currentState.loadedFilterName === name) {
     settings.currentState.loadedFilterName = null;
   }
 
   saveSettingsToStorage();
   refreshFilterDropdown();
+  showToast(`Filter "${name}" deleted.`, 'success');
 }
 
 
 function applySettingsToUI() {
   const collapseCb = document.getElementById('collapse-callings');
   const onlyShowCb = document.getElementById('only-show-selected-columns');
+  const hideVacantCb = document.getElementById('hide-vacant-callings');
 
   collapseCb.checked = settings.currentState.collapseCallings;
   onlyShowCb.checked = settings.currentState.onlyShowSelected;
+  hideVacantCb.checked = settings.currentState.hideVacantCallings;
 
   clearCallingsTable();
   const dataToLoad = settings.currentState.collapseCallings ? [...collapsedCallings] : [...callings];
@@ -596,34 +488,117 @@ function applySettingsToUI() {
     indexMap.set(id, index);
   });
 
-  // Sort the data
-  // - If both items are in the map, sort by their index value.
-  // - If Item A is in the map and Item B is not, Item A comes first (-1).
-  // - If Item B is in the map and Item A is not, Item B comes first (1).
-  // - If neither is in the map, maintain original order (return 0).
+  // Sort selected rows to the top, preserving their order in selectedCallings.
   dataToLoad.sort((a, b) => {
     const indexA = indexMap.has(a.id) ? indexMap.get(a.id) : -1;
     const indexB = indexMap.has(b.id) ? indexMap.get(b.id) : -1;
 
-    if (indexA !== -1 && indexB !== -1) {
-      return indexA - indexB;
-    } else if (indexA !== -1) {
-      return -1;
-    } else if (indexB !== -1) {
-      return 1;
-    } else {
-      return 0;
-    }
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return 0;
   });
 
   appendCallingsTable(dataToLoad);
-
   refreshFilterDropdown();
 }
 
 
 function saveSettingsToStorage() {
-  chrome.storage.local.set({ settings: settings });
+  chrome.storage.local.set({ [TABLE_SETTINGS_STORAGE_KEY]: settings });
+}
+
+/**
+ * Promise-returning confirm dialog. Renders inside #sheet-confirm-modal so
+ * it inherits the existing modal styling instead of using the native
+ * window.confirm, which is blocking and visually out-of-place.
+ */
+function confirmDialog(message) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('sheet-confirm-modal');
+    if (!modal) {
+      // Fall back to native in the unlikely event the scaffold is missing.
+      resolve(window.confirm(message));
+      return;
+    }
+    modal.innerHTML = '';
+
+    const close = (answer) => {
+      modal.classList.add('hidden');
+      modal.innerHTML = '';
+      resolve(answer);
+    };
+
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-dialog';
+    dialog.setAttribute('role', 'dialog');
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.addEventListener('click', () => close(false));
+    modal.appendChild(backdrop);
+
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    const h2 = document.createElement('h2');
+    h2.textContent = 'Confirm';
+    header.appendChild(h2);
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'modal-close';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', () => close(false));
+    header.appendChild(closeBtn);
+    dialog.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    const p = document.createElement('p');
+    p.textContent = message;
+    body.appendChild(p);
+    dialog.appendChild(body);
+
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'secondary-button';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => close(false));
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'action-button';
+    ok.textContent = 'OK';
+    ok.addEventListener('click', () => close(true));
+    footer.appendChild(cancel);
+    footer.appendChild(ok);
+    dialog.appendChild(footer);
+
+    modal.appendChild(dialog);
+    modal.classList.remove('hidden');
+    ok.focus();
+  });
+}
+
+/**
+ * Render a toast. Reuses callings-sheet-import.js's showToast if loaded;
+ * otherwise falls back to a minimal inline implementation. Kept independent
+ * so this file doesn't hard-depend on the import module.
+ */
+function showToast(message, kind = 'info') {
+  if (window.LCRHelperImport && typeof window.LCRHelperImport.showToast === 'function') {
+    window.LCRHelperImport.showToast(message, kind);
+    return;
+  }
+  const el = document.getElementById('sheet-toast');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'toast';
+  if (kind === 'error') el.classList.add('toast-error');
+  if (kind === 'success') el.classList.add('toast-success');
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 3500);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -640,37 +615,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-
   document.getElementById('btn-save-filter').addEventListener('click', saveNewFilter);
   document.getElementById('btn-update-filter').addEventListener('click', updateCurrentFilter);
   document.getElementById('btn-delete-filter').addEventListener('click', deleteFilter);
   document.getElementById('btn-copy-table').addEventListener('click', copyTableToClipboard);
 
-  // Read settings from storage
-  chrome.storage.local.get(['settings'], function (result) {
-    console.log('Value currently is:');
-    console.log(result.settings);
-    if (result.settings) {
-      if (!result.settings.currentState) {
-        const oldSelected = result.settings.selectedCallings || [];
+  chrome.storage.local.get([TABLE_SETTINGS_STORAGE_KEY], function (result) {
+    const stored = result[TABLE_SETTINGS_STORAGE_KEY];
+    if (stored) {
+      if (!stored.currentState) {
+        const oldSelected = stored.selectedCallings || [];
         settings.currentState.selectedCallings = oldSelected;
         settings.savedFilters = [];
       } else {
-        settings = result.settings;
+        settings = stored;
 
-        // If a system filter is loaded, sync its settings from the code definition.
-        // This ensures that updates to SYSTEM_FILTERS (like reordering) are applied immediately.
+        // If a system filter is loaded, sync its settings from the code
+        // definition. This ensures updates to SYSTEM_FILTERS (like
+        // reordering) propagate to users on their next load.
         if (settings.currentState.loadedFilterName && isSystemFilter(settings.currentState.loadedFilterName)) {
           const sysFilter = SYSTEM_FILTERS.find(f => f.name === settings.currentState.loadedFilterName);
           if (sysFilter) {
-            console.log(`Syncing system filter "${sysFilter.name}" from code definition.`);
             settings.currentState.selectedCallings = [...sysFilter.selectedCallings];
             settings.currentState.collapseCallings = sysFilter.collapseCallings;
             settings.currentState.onlyShowSelected = sysFilter.onlyShowSelected;
             settings.currentState.hideVacantCallings = sysFilter.hideVacantCallings || false;
-
-            // Should we save the corrected state back to storage immediately?
-            // Yes, to keep it consistent.
             saveSettingsToStorage();
           }
         }
@@ -691,35 +660,24 @@ function copyTableToClipboard() {
   if (!table) return;
 
   let clipboardText = '';
-
-  // 1. Process Header
   const headers = Array.from(table.querySelectorAll('thead th'));
-  // Skip the first column (Select)
   const headerTexts = headers.slice(1).map(th => th.textContent.trim());
   clipboardText += headerTexts.join('\t') + '\n';
 
-  // 2. Process Body Rows
   const rows = Array.from(table.querySelectorAll('tbody tr:not(.hidden-row)'));
-
   rows.forEach(row => {
     const cells = Array.from(row.querySelectorAll('td'));
-    // Skip the first column (Select)
     const rowData = cells.slice(1).map(td => td.textContent.trim());
     clipboardText += rowData.join('\t') + '\n';
   });
 
-  // 3. Write to Clipboard
   navigator.clipboard.writeText(clipboardText).then(() => {
-    // Optional: Visual feedback
     const btn = document.getElementById('btn-copy-table');
     const originalText = btn.textContent;
     btn.textContent = 'Copied!';
-    setTimeout(() => {
-      btn.textContent = originalText;
-    }, 2000);
+    setTimeout(() => { btn.textContent = originalText; }, 2000);
   }).catch(err => {
     console.error('Failed to copy text: ', err);
-    alert('Failed to copy table to clipboard.');
+    showToast('Failed to copy table to clipboard.', 'error');
   });
 }
-

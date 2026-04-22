@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <link rel="stylesheet" href="callings-table.css">
   <link rel="stylesheet" href="callings-sheet-import.css">
+  <script src="constants.js"></script>
   <script src="common.js"></script>
   <script src="generated-table-script.js"></script>
   <script src="callings-sheet-settings.js"></script>
@@ -52,13 +53,14 @@
         <th class="name-col">Name</th>
         <th>Email</th></tr>
       </thead>
-      <tbody id="callings-table-body" />
+      <tbody id="callings-table-body"></tbody>
     </table>
     <div class="nested"><b>Count: <span id="calling-count">0</span></b></div>
   </div>
 
   <div id="sheet-settings-modal" class="modal hidden" aria-hidden="true"></div>
   <div id="sheet-review-modal" class="modal hidden" aria-hidden="true"></div>
+  <div id="sheet-confirm-modal" class="modal hidden" aria-hidden="true"></div>
   <div id="sheet-toast" class="toast hidden"></div>
 </body>
 </html>

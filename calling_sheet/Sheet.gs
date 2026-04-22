@@ -8,6 +8,10 @@
  */
 
 var SHEET_ID_KEY = 'SHEET_ID';
+
+// Per-execution cache. Apps Script gives each HTTP request a fresh global
+// scope, so this is NOT cross-request — it just avoids repeated
+// openById() calls inside a single doGet/doPost.
 var _cachedTargetSpreadsheet = null;
 
 function getTargetSpreadsheet() {

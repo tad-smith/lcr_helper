@@ -1,47 +1,31 @@
-
-
 /**
  * Dynamically creates a <style> element and injects a string of CSS rules
  * into the document's <head> section.
- * * This method supports both modern browsers (using appendChild with TextNode)
- * and older versions of Internet Explorer (using styleSheet.cssText).
  *
- * @param {string} cssRules A string containing the CSS rules to be applied
- * to the document (e.g., "body { margin: 0; }").
+ * @param {string} cssRules CSS rules to inject, e.g. "body { margin: 0; }".
  * @returns {void}
  */
 function addInlineStyles(cssRules) {
   const styleElement = document.createElement('style');
-  // Set the type attribute for best compatibility
-  styleElement.type = 'text/css';
-
-  // Add the CSS rules as text content
-  if (styleElement.styleSheet) {
-    // For Internet Explorer (older versions)
-    styleElement.styleSheet.cssText = cssRules;
-  } else {
-    // For modern browsers
-    styleElement.appendChild(document.createTextNode(cssRules));
-  }
-
-  // Append the <style> element to the <head> of the document
+  styleElement.appendChild(document.createTextNode(cssRules));
   document.head.appendChild(styleElement);
 }
 
+const EXTENSION_STYLE_ID = 'lcr-helper-extension-styles';
+
 /**
- * Defines a set of CSS rules specifically for the extension's UI components
- * (like the 'Extract Callings' button) and injects them into the document's head.
- *
- * This function utilizes the external utility function `addInlineStyles` to
- * dynamically apply styles, ensuring custom elements look correct on the host
- * webpage.
+ * Injects the extension's UI styles (currently only the Extract Callings
+ * button) into the host page. Idempotent — guarded by a sentinel id so
+ * repeated calls during SPA remounts don't duplicate <style> nodes.
  *
  * @returns {void}
- * @global {function(string): void} addInlineStyles - Required function to create
- * and append a <style> element containing the CSS rules to the document head.
  */
 function addExtensionStyles() {
-  const dynamicStyles = `
+  if (document.getElementById(EXTENSION_STYLE_ID)) return;
+
+  const styleElement = document.createElement('style');
+  styleElement.id = EXTENSION_STYLE_ID;
+  styleElement.appendChild(document.createTextNode(`
       .extract-callings-button {
         text-transform: none;
         overflow: visible;
@@ -66,7 +50,6 @@ function addExtensionStyles() {
         border: 1px solid rgb(0, 97, 132);
         height: 33px;
     }
-  `;
-  addInlineStyles(dynamicStyles);
+  `));
+  document.head.appendChild(styleElement);
 }
-
