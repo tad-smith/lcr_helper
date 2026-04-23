@@ -2,3 +2,7 @@
 
 # clasp writes the Apps Script scriptId here — per-environment, not versioned.
 calling_sheet/.clasp.json
+
+# Pre-refactor backup kept locally for reference; contains the original
+# hardcoded PII that was moved to Script Properties.
+email_forwarding_sync/email_forwarding_sync.gs.bak

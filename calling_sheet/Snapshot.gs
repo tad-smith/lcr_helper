@@ -3,10 +3,38 @@
  * wire format and doc/position-mapping.md for the lcr_id derivation rules.
  */
 
-var FIRST_EMAIL_COLUMN = 4;  // column D — first writable column
 var ORG_COLUMN = 1;          // column A
 var FWD_COLUMN = 2;          // column B
 var POS_COLUMN = 3;          // column C
+var NAME_COLUMN = 4;         // column D — reserved (human-readable name);
+                             // this script does not read it, but writes
+                             // must never touch it.
+var FIRST_EMAIL_COLUMN = 5;  // column E — first writable column
+
+// Required row-1 headers on every per-ward tab. Verified before every
+// snapshot and every apply so a layout change can't silently shift
+// every column by one. Case-insensitive, whitespace-tolerant match.
+var EXPECTED_WARD_HEADERS = ['Organization', 'Forwarding Email', 'Position', 'Name'];
+
+/**
+ * Verifies the first N cells of `headerRow` match EXPECTED_WARD_HEADERS.
+ * Returns `{ok: true}` on match; `{ok: false, expected, got}` otherwise.
+ *
+ * @param {Array} headerRow The raw values of row 1 (1D array).
+ */
+function verifyWardTabHeaders(headerRow) {
+  var h = headerRow || [];
+  var got = [];
+  for (var i = 0; i < EXPECTED_WARD_HEADERS.length; i++) {
+    got.push(trim(h[i] == null ? '' : h[i]));
+  }
+  for (var j = 0; j < EXPECTED_WARD_HEADERS.length; j++) {
+    if (got[j].toLowerCase() !== EXPECTED_WARD_HEADERS[j].toLowerCase()) {
+      return { ok: false, expected: EXPECTED_WARD_HEADERS.slice(), got: got };
+    }
+  }
+  return { ok: true };
+}
 
 /**
  * Public entry — called by Code.gs doGet router.
@@ -41,6 +69,23 @@ function handleSnapshot(wardName) {
   }
 
   var values = tab.getDataRange().getValues();
+
+  var headerCheck = verifyWardTabHeaders(values[0]);
+  if (!headerCheck.ok) {
+    logEvent('ERROR', 'Snapshot rejected: ward tab header mismatch', {
+      ward_code: wardCode,
+      expected: headerCheck.expected,
+      got: headerCheck.got,
+    });
+    return jsonResponse({
+      ok: false,
+      error: 'header_mismatch',
+      ward_code: wardCode,
+      expected: headerCheck.expected,
+      got: headerCheck.got,
+    });
+  }
+
   var rows = [];
   // row 0 = header; data starts at row index 1 (absolute sheet row 2).
   for (var i = 1; i < values.length; i++) {
@@ -53,6 +98,8 @@ function handleSnapshot(wardName) {
     // Apply.gs cannot protect them. Don't leave orphan emails on rows
     // with no position.
     if (!organization && !position) continue;
+
+    var name = trim(raw[NAME_COLUMN - 1]);
 
     var emails = [];
     for (var c = FIRST_EMAIL_COLUMN - 1; c < raw.length; c++) {
@@ -68,6 +115,7 @@ function handleSnapshot(wardName) {
       position: position,
       lcr_id: derived.lcr_id,
       override_applied: derived.override_applied,
+      name: name,
       emails: emails,
     });
   }

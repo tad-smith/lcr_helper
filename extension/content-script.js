@@ -36,7 +36,7 @@ function extractCallingsFromData(unitOrgData) {
         calling.isVacant = position.positionStatus === 'VACANT_POSITION';
 
         if (!calling.isVacant && position.person) {
-          calling.person = position.person.name;
+          calling.person = formatPersonName(position.person.name);
           calling.memberProfileNumber = position.person.uuid;
         }
 
@@ -54,6 +54,49 @@ function extractCallingsFromData(unitOrgData) {
   }
 
   return callings;
+}
+
+/**
+ * Converts an LCR-style `"LastName, First Middle"` name into
+ * `"First LastName"` — dropping the middle name(s). Applied at the
+ * point LCR data enters our pipeline so nothing downstream sees the
+ * comma-prefixed form.
+ *
+ * Why dropping the middle: merged callings (e.g., three Aaronic
+ * Priesthood Advisors) join names with `", "` in
+ * `common.js::mergeCallings` so the sheet's Name column can list
+ * everyone. Keeping `"First Middle"` leaks more tokens per name than
+ * we can fit legibly and adds no identifying value beyond `"First"`
+ * for most rows.
+ *
+ * Rules:
+ * - Split on the FIRST comma only, so `"Smith Jr., John"` becomes
+ *   `"John Smith Jr."` (the suffix stays with the surname).
+ * - Take only the first whitespace-separated token of the "First
+ *   Middle" chunk as the first name; everything after it is dropped.
+ * - Names without a comma pass through unchanged, so manual or
+ *   malformed entries don't get mangled.
+ *
+ * Examples:
+ *   "Smith, John"                 → "John Smith"
+ *   "Smith, John David"           → "John Smith"
+ *   "Smith, John David Michael"   → "John Smith"
+ *   "Smith Jr., John David"       → "John Smith Jr."
+ *   "O'Brien, Mary"               → "Mary O'Brien"
+ *   "John Smith"                  → "John Smith"   (no comma — passthrough)
+ *   ""  /  null                   → ""
+ */
+function formatPersonName(lcrName) {
+  if (!lcrName) return '';
+  const s = String(lcrName).trim();
+  const comma = s.indexOf(',');
+  if (comma === -1) return s;
+  const lastName = s.substring(0, comma).trim();
+  const firstMiddle = s.substring(comma + 1).trim();
+  if (!lastName) return firstMiddle.split(/\s+/)[0] || '';
+  if (!firstMiddle) return lastName;
+  const firstName = firstMiddle.split(/\s+/)[0];
+  return firstName + ' ' + lastName;
 }
 
 /** Max simultaneous member-card fetches. LCR rate-limits aggressive callers. */

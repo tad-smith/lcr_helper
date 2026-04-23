@@ -84,15 +84,18 @@ Read this first; subsystem docs assume the vocabulary defined here.
    f. Apps Script verifies the secret, confirms the snapshot isn't stale
       (`getLastUpdated()` on the sheet file), re-runs the merge as a sanity
       check (refuses operations that would drop an internal alias), and
-      writes `new_emails` to column D onward on each row with one
-      `setValues()` call. Returns a summary.
+      writes `new_name` (when present) to column D and `new_emails`
+      to column E onward on each row. Returns a summary.
    g. Extension shows a toast with applied/skipped/error counts and closes
       the modal.
 
 ## Invariants
 
 - **Columns A–C are immutable from this system.** Code uses
-  `FIRST_EMAIL_COLUMN = 4` as the lower bound for any write.
+  `FIRST_EMAIL_COLUMN = 5` as the lower bound for email writes.
+  Column D (Name) is written by the import flow (keeping it in sync
+  with LCR's assignees) but is not *read* by any code path — it is
+  there for sheet users.
 - **Sheet row count is immutable from this system.** The extension never
   inserts or deletes rows; adding a tracked calling is a manual sheet edit.
 - **Internal-domain addresses (`@<internal_domain>`) in any email column

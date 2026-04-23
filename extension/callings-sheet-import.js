@@ -94,24 +94,38 @@ function computeDiff(snapshot, collapsedCallings) {
     seenIds.add(row.lcr_id);
 
     const lcrEmails = calling.isVacant ? [] : splitEmails(calling.email);
+    const beforeName = row.name || '';
+    const afterName = calling.isVacant ? '' : (calling.person || '');
     const { emails: newEmails, warnings } = mergeEmails({
       existing: row.emails,
       lcrEmails,
       internalDomain: snapshot.internal_domain,
     });
 
-    if (deepEqualArr(newEmails, row.emails) && warnings.length === 0) {
+    const emailsEqual = deepEqualArr(newEmails, row.emails);
+    const nameEqual = afterName === beforeName;
+
+    if (emailsEqual && nameEqual && warnings.length === 0) {
       unchanged.push({ row, calling });
       continue;
     }
 
+    const entry = {
+      row,
+      calling,
+      before: row.emails,
+      after: newEmails,
+      beforeName,
+      afterName,
+      warnings,
+    };
     const hasNonInternal = row.emails.some(
       (r) => !isInternalAddr(parseEmailCell(r).canonical, snapshot.internal_domain),
     );
     if (lcrEmails.length === 0 && hasNonInternal) {
-      vacates.push({ row, calling, before: row.emails, after: newEmails, warnings });
+      vacates.push(entry);
     } else {
-      updates.push({ row, calling, before: row.emails, after: newEmails, warnings });
+      updates.push(entry);
     }
   }
 
@@ -179,6 +193,22 @@ async function postApply(webAppUrl, secret, wardName, operations, generatedAt) {
   });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   return resp.json();
+}
+
+/* ───────── Server error formatting ───────── */
+
+/**
+ * Renders an error response body into a user-facing string. Specific
+ * errors like `header_mismatch` expand to an actionable message that
+ * names the expected layout; unknown codes fall through as-is.
+ */
+function formatServerError(result) {
+  if (!result) return 'unknown_error';
+  if (result.error === 'header_mismatch') {
+    const expected = (result.expected || []).join(' | ');
+    return `sheet column headers don't match — row 1 should be: ${expected}`;
+  }
+  return result.error || 'unknown_error';
 }
 
 /* ───────── Tiny DOM helper ───────── */
@@ -290,11 +320,28 @@ function renderDiffRow(entry, writable) {
       )
     : h('span', { class: 'row-title' }, title);
 
-  const children = [
-    header,
+  const children = [header];
+
+  // Show a Name: before → after line only when the name actually changes,
+  // so unchanged name (which is the common case) doesn't visually clutter
+  // every row with information the user doesn't need to act on.
+  if (entry.beforeName !== entry.afterName) {
+    children.push(
+      h(
+        'div',
+        { class: 'row-name' },
+        'Name: ',
+        h('span', { class: 'removed' }, entry.beforeName || '(empty)'),
+        ' → ',
+        h('span', { class: 'added' }, entry.afterName || '(empty)'),
+      ),
+    );
+  }
+
+  children.push(
     h('div', { class: 'row-before' }, '- ', ...emailListBefore(entry.before, entry.after)),
     h('div', { class: 'row-after' }, '+ ', ...emailListAfter(entry.before, entry.after)),
-  ];
+  );
 
   if (hasWarning) {
     for (const w of entry.warnings) {
@@ -471,7 +518,13 @@ function openReviewModal({ snapshot, diff, settings, ctx }) {
     checkedInputs.forEach((input) => {
       const idx = parseInt(input.dataset.rowIndex, 10);
       const entry = entriesByRow[idx];
-      if (entry) ops.push({ row_index: idx, new_emails: entry.after });
+      if (entry) {
+        ops.push({
+          row_index: idx,
+          new_emails: entry.after,
+          new_name: entry.afterName,
+        });
+      }
     });
 
     if (ops.length === 0) return;
@@ -511,14 +564,26 @@ function openReviewModal({ snapshot, diff, settings, ctx }) {
           ctx.ward,
         );
         if (!newSnap || newSnap.ok === false) {
-          showToast('Re-fetch failed: ' + (newSnap && newSnap.error), 'error');
+          if (newSnap && newSnap.error === 'header_mismatch') {
+            console.error('[LCR Helper] header mismatch', {
+              expected: newSnap.expected,
+              got: newSnap.got,
+            });
+          }
+          showToast('Re-fetch failed: ' + formatServerError(newSnap), 'error');
           return;
         }
         const newDiff = computeDiff(newSnap, ctx.collapsedCallings);
         openReviewModal({ snapshot: newSnap, diff: newDiff, settings, ctx });
+      } else if (result && result.error === 'header_mismatch') {
+        console.error('[LCR Helper] header mismatch', {
+          expected: result.expected,
+          got: result.got,
+        });
+        showToast('Apply failed: ' + formatServerError(result), 'error');
+        closeReviewModal();
       } else {
-        const err = (result && result.error) || 'unknown_error';
-        showToast('Apply failed: ' + err, 'error');
+        showToast('Apply failed: ' + formatServerError(result), 'error');
         applyBtn.disabled = false;
         cancelBtn.disabled = false;
         refreshApplyButton();
@@ -568,7 +633,13 @@ async function handleImportClick() {
       ctx.ward,
     );
     if (!snapshot || snapshot.ok === false) {
-      throw new Error((snapshot && snapshot.error) || 'snapshot_error');
+      if (snapshot && snapshot.error === 'header_mismatch') {
+        console.error('[LCR Helper] header mismatch', {
+          expected: snapshot.expected,
+          got: snapshot.got,
+        });
+      }
+      throw new Error(formatServerError(snapshot));
     }
     const diff = computeDiff(snapshot, ctx.collapsedCallings);
     openReviewModal({ snapshot, diff, settings, ctx });
@@ -591,6 +662,7 @@ window.LCRHelperImport = {
   computeDiff,
   fetchSnapshot,
   postApply,
+  formatServerError,
   openReviewModal,
   closeReviewModal,
   showToast,

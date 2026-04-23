@@ -7,6 +7,134 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-04-22 — extension version 1.2.3.1
+
+- `extension/manifest.json`: bump to `1.2.3.1` for the LCR name-
+  format normalization in `content-script.js::formatPersonName`.
+
+## 2026-04-22 — email_forwarding_sync: verify ward-tab headers
+
+- `email_forwarding_sync/email_forwarding_sync.gs`: new
+  `EXPECTED_WARD_HEADERS = ['Organization', 'Forwarding Email',
+  'Position', 'Name']` (mirrors the `calling_sheet/Snapshot.gs`
+  schema — both scripts share the spreadsheet). `extractGroups(sheet)`
+  now verifies row 1 via a new `verifyWardTabHeaders` helper before
+  iterating rows; on mismatch it calls `logAndEmailError` (so the
+  failure lands in the ERRORS tab *and* emails the stake email
+  admin) and then throws, aborting the sync. This prevents the
+  script from silently adding the wrong people to the wrong groups
+  if someone rearranges columns or deploys the script against a sheet
+  that hasn't been migrated to the new Name-at-D layout.
+
+## 2026-04-22 — extension version 1.2.3.0
+
+- `extension/manifest.json`: bump to `1.2.3.0` for name-column sync.
+
+## 2026-04-22 — sync the Name column (D) on import
+
+The import flow now keeps column D (Name) in step with LCR. Single-
+person callings populate D with the assigned person's name; merged
+rows (e.g., Aaronic Priesthood Advisors) populate D with a
+comma-joined list of all assignees; vacated callings clear D. Column
+D is still never read by the app's logic — it's purely a
+human-readable identifier — but users no longer have to maintain it
+by hand.
+
+- `extension/content-script.js`: new `formatPersonName()` helper
+  converts LCR's `"LastName, First Middle"` into `"First LastName"`
+  (middle names dropped) at the point LCR data enters the pipeline.
+  Applied in `extractCallingsFromData` before anything downstream
+  sees the name. Without this, the comma embedded in LCR-style
+  names would collide with the `", "` separator used to join names
+  for merged callings — a 3-person row would turn into 6 ambiguous
+  tokens in the sheet's Name column. Splits on the first comma
+  only, so `"Smith Jr., John"` → `"John Smith Jr."` (suffix stays
+  with the surname); names without a comma pass through unchanged.
+- `extension/common.js`: `mergeCallings` now accumulates person names
+  into a lazily-initialized `_nameList` on merge and joins them with
+  `", "` into `person` at finalize. Singletons keep their original
+  `person` untouched (matching the email-sentinel preservation
+  pattern). Names have already been normalized to `"First LastName"`
+  form by `formatPersonName()` upstream, so the `", "` join is
+  unambiguous.
+- `extension/callings-sheet-import.js`: `computeDiff` now captures
+  `beforeName` / `afterName` on every diff entry and treats a
+  name-only change as an update (previously would have been
+  classified as unchanged). Review-modal rows render a
+  `Name: old → new` line only when the name actually changed, so
+  unchanged-name rows stay visually compact. Apply operations now
+  include an optional `new_name` field.
+- `extension/callings-sheet-import.css`: styling for the new
+  `.row-name` line (same removed/added colors as the email diff).
+- `calling_sheet/Snapshot.gs`: each row now includes `name` (the
+  current value of column D, trimmed). Previously unread.
+- `calling_sheet/Apply.gs`: validates optional `new_name` on every
+  operation (must be a string when present) and writes it to column D
+  before clearing and rewriting the email columns. Absent `new_name`
+  leaves column D untouched so older clients remain compatible.
+
+## 2026-04-22 — extension version 1.2.2.0
+
+- `extension/manifest.json`: bump to `1.2.2.0` for the ward-tab header
+  verification surface.
+
+## 2026-04-22 — ward-tab header verification
+
+New defense-in-depth check on every snapshot and every apply: if row 1
+of the ward tab doesn't match the expected schema
+(`Organization | Forwarding Email | Position | Name`), the server
+rejects the request outright with a new `header_mismatch` error and
+the extension surfaces an actionable toast naming the expected layout.
+This is what catches the "new server deployed against an old sheet"
+(and vice versa) foot-gun that the column-shift refactor opened up.
+
+- `calling_sheet/Snapshot.gs`: new `EXPECTED_WARD_HEADERS` constant and
+  `verifyWardTabHeaders(headerRow)` helper. `handleSnapshot` calls it
+  after reading the tab's data range and returns
+  `{ok: false, error: 'header_mismatch', expected, got}` on mismatch.
+  Comparison is case-insensitive and whitespace-tolerant.
+- `calling_sheet/Apply.gs`: same `verifyWardTabHeaders` call before
+  any write, guarded by the already-present staleness check. Writes
+  only occur if both checks pass.
+- `extension/callings-sheet-import.js`: new `formatServerError` helper
+  that expands `header_mismatch` into an actionable message ("row 1
+  should be: Organization | Forwarding Email | Position | Name"). Used
+  by the snapshot, apply, and stale-snapshot re-fetch error paths. The
+  review modal closes on header mismatch during apply (the error is
+  not retryable in place — the sheet must be fixed first).
+
+## 2026-04-22 — sheet format: reserved Name column at D
+
+Behavior change. Sheet schema change.
+
+Every per-ward tab now has a reserved `Name` column at D (a
+human-readable identifier for the person). Personal emails shift one
+column right, starting at column E. Neither `calling_sheet/` nor
+`email_forwarding_sync/` reads or writes column D — both skip it —
+but both now know it exists.
+
+- `calling_sheet/Snapshot.gs`: new `NAME_COLUMN = 4` constant;
+  `FIRST_EMAIL_COLUMN` moved from `4` to `5`. Snapshot reads of
+  existing emails start at column E.
+- `calling_sheet/Apply.gs`: comment and file-level JSDoc updated to
+  note that column D is now also never written to. No code change —
+  the clear/write math already derives from `FIRST_EMAIL_COLUMN`.
+- `email_forwarding_sync/email_forwarding_sync.gs`: new `NAME_COL = 3`
+  (0-indexed); `PERSONAL_EMAILS_COL` moved from `3` to `4`. Name
+  column intentionally not read.
+- `CLAUDE.md`, `doc/architecture.md`, `doc/sheet-setup.md`,
+  `doc/import-flow.md`, `doc/email-merge-algorithm.md`: column
+  references updated to match the new layout.
+
+Migration: on every per-ward tab, insert a new column D with header
+`Name`. Existing data in columns D onward shifts one column right;
+Google Sheets does this cleanly via right-click → *Insert 1 column
+left* while column D is selected. Coordinate the sheet edit with a
+`clasp push` of `calling_sheet/` so the old server doesn't run
+against the new sheet (which would treat Name as an email and drop
+it) or the new server against the old sheet (which would skip the
+last email column).
+
 ## 2026-04-21 — extension version 1.2.1.1
 
 - `extension/manifest.json`: bump to `1.2.1.1` for the singleton

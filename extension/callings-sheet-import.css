@@ -160,6 +160,19 @@
   font-weight: 600;
   font-family: monospace;
 }
+.review-section .review-row .row-name {
+  font-size: 13px;
+  margin-left: 24px;
+  color: #555;
+}
+.review-section .review-row .row-name .removed {
+  text-decoration: line-through;
+  color: #b00020;
+}
+.review-section .review-row .row-name .added {
+  font-weight: 600;
+  color: #2d7a2d;
+}
 .review-section .review-row .row-before,
 .review-section .review-row .row-after {
   font-family: monospace;

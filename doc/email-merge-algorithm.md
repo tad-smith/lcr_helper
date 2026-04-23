@@ -8,7 +8,8 @@ the existing email cells on a ward-tab row. Implemented authoritatively in
 ## Inputs
 
 - `existing` — the row's current cell values, in order, starting at
-  column D. Already trimmed and filtered to non-empty strings.
+  column E (column D holds the reserved Name and is skipped). Already
+  trimmed and filtered to non-empty strings.
 - `lcrEmails` — the personal email addresses LCR reports for this calling.
   May be empty (vacant calling, or calling has no members with recorded
   emails). Already trimmed and filtered to non-empty strings.
@@ -21,7 +22,7 @@ preserved in its original casing.
 ## Output
 
 - `emails` — the final list of cell values in final order, to be written
-  starting at column D.
+  starting at column E.
 - `warnings` — annotations-lost warnings surfaced in the review modal.
   Never block the apply.
 
@@ -100,7 +101,7 @@ function mergeEmails({ existing, lcrEmails, internalDomain }) {
   emails.** Verbatim, including any annotation. Their relative order
   among each other is preserved.
 - **Personal emails keep their order relative to each other.** Someone
-  who stays called and was in column D stays in column D, minus any
+  who stays called and was in column E stays in column E, minus any
   internal aliases that used to sit between them.
 - **Newly called people are appended** in LCR's order after existing
   personal cells — and therefore before any internal aliases.

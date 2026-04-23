@@ -122,8 +122,8 @@ real file lands.
 | `Config.gs` | `getConfig()` reads `_config` + `_position_overrides` with a 5-minute CacheService cache keyed on the spreadsheet's `getLastUpdated()`. |
 | `Logging.gs` | `logEvent(level, message, data)` — writes to the auto-created `_log` tab and to `console.log`. |
 | `Sheet.gs` | `getTargetSpreadsheet()` — resolves the target sheet via the `SHEET_ID` script property. The standalone deployment model depends on this. |
-| `Snapshot.gs` | `handleSnapshot(wardName)` — reads the ward tab, derives `lcr_id` per row (override or natural), returns JSON with `generated_at`. Owns the `FIRST_EMAIL_COLUMN` / `ORG_COLUMN` / `POS_COLUMN` constants. |
-| `Apply.gs` | `handleApply(body)` — validates payload, runs the Drive `getLastUpdated` staleness check, runs `verifyInternalAliasesPreserved` per operation, clears + writes column D onward with a single `setValues()` per row, one `SpreadsheetApp.flush()` at the end. |
+| `Snapshot.gs` | `handleSnapshot(wardName)` — reads the ward tab, derives `lcr_id` per row (override or natural), returns JSON with `generated_at`. Owns the `FIRST_EMAIL_COLUMN` / `NAME_COLUMN` / `ORG_COLUMN` / `POS_COLUMN` constants. |
+| `Apply.gs` | `handleApply(body)` — validates payload, runs the Drive `getLastUpdated` staleness check, runs `verifyInternalAliasesPreserved` per operation, writes optional `new_name` to column D, then clears + writes column E onward with a single `setValues()` per row, one `SpreadsheetApp.flush()` at the end. Column D is only written when `new_name` is present on the op. |
 | `EmailMerge.gs` | `parseEmailCell`, `mergeEmails`, `verifyInternalAliasesPreserved` — the server-side mirror of the extension's merge logic. |
 
 ### Conventions and gotchas (calling_sheet)
@@ -131,14 +131,25 @@ real file lands.
 - **HTTP status codes are always 200.** Apps Script's ContentService
   can't set 4xx/5xx. All errors are surfaced in the JSON body as
   `{ ok: false, error: "..." }`. Callers check the body.
-- **`FIRST_EMAIL_COLUMN = 4` is the lower bound for writes.** Columns
-  A, B, C are never touched by any code path. There is no
-  column-clearing path that doesn't start at D.
+- **`FIRST_EMAIL_COLUMN = 5` is the lower bound for *email* writes.**
+  Columns A, B, C are never touched. Column D (Name) is written
+  *only* via the per-operation optional `new_name` field in
+  `handleApply` — never cleared as part of the email-column sweep.
+  Email cells are cleared starting at E; the Name write happens
+  before that sweep via a separate `setValue`.
 - **Sanity check on internal aliases.** `Apply.gs` runs
   `verifyInternalAliasesPreserved` per operation and rejects that
   operation (`would_drop_internal_alias`) if any existing
   `@<internal_domain>` cell is absent from `new_emails`. This is a
   defense against a misbehaving extension; don't remove it.
+- **Header verification.** Both `handleSnapshot` and `handleApply`
+  call `verifyWardTabHeaders` against row 1 before any read or write
+  that depends on column layout. Mismatch returns
+  `{ok: false, error: 'header_mismatch', expected, got}`. Expected
+  headers (A–D): `Organization`, `Forwarding Email`, `Position`,
+  `Name`. Case-insensitive, whitespace-tolerant. This catches a
+  server-sheet version mismatch that would otherwise corrupt every
+  row silently.
 - **Same-name-in-two-files is a load error.** When adding a file that
   owns a previously-stubbed function, delete the stub from `Code.gs`.
 - **`.clasp.json` is gitignored.** Committed template:

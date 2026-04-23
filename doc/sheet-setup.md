@@ -81,11 +81,28 @@ Named exactly after `ward_code` (e.g., `CO`). Row 1 is the header:
 | A      | Organization      | ✅               | ❌                 |
 | B      | Forwarding Email  | ✅               | ❌                 |
 | C      | Position          | ✅               | ❌                 |
-| D      | (personal email)  | ✅ (initially)   | ✅                 |
+| D      | Name              | ✅ (initially)   | ✅                 |
 | E      | (personal email)  | ✅ (initially)   | ✅                 |
-| F…     | (personal email)  | ✅ (initially)   | ✅                 |
+| F      | (personal email)  | ✅ (initially)   | ✅                 |
+| G…     | (personal email)  | ✅ (initially)   | ✅                 |
 
-Rules for columns D onward:
+Column D (Name) is a human-readable identifier for the person(s)
+assigned to the calling. The import flow keeps it in sync with LCR:
+single-person rows get the assignee's name; merged rows (e.g.,
+Aaronic Priesthood Advisors) get a comma-joined list of all
+assignees; vacated rows clear it. Nothing in this system *reads*
+column D — it exists for sheet users — but the import flow *writes*
+it so users don't have to maintain it by hand.
+
+**Row 1 is verified on every snapshot and every apply.** The first
+four header cells must read exactly `Organization`, `Forwarding
+Email`, `Position`, `Name` (case-insensitive, whitespace-tolerant). If
+they don't, the server returns a `header_mismatch` error and the
+extension surfaces a toast naming the expected layout. This is a
+guard against an accidental column shift silently corrupting email
+cells.
+
+Rules for columns E onward:
 
 - Cells hold email addresses, one per cell, growing rightward.
 - Addresses ending in `@<internal_domain>` (for this ward) are **internal
@@ -103,8 +120,9 @@ Rules for columns D onward:
   review modal. See [`email-merge-algorithm.md`](./email-merge-algorithm.md)
   for the precise rules.
 
-Adding a new tracked calling: add a new row by hand, set columns A–C, and
-run an import. The next import will populate column D onward.
+Adding a new tracked calling: add a new row by hand, set columns A–C
+(optionally D for Name), and run an import. The next import will
+populate column E onward.
 
 Removing a tracked calling: delete the row by hand. The extension never
 deletes rows.
@@ -115,9 +133,13 @@ deletes rows.
 2. Create the `_config` tab with the header + one row per ward.
 3. Create the `_position_overrides` tab with the header (body may start
    empty; add overrides as you discover them).
-4. Create one tab per `ward_code` with the four-column header in row 1.
+4. Create one tab per `ward_code` with the four fixed-column headers in
+   row 1: Organization, Forwarding Email, Position, Name. Additional
+   columns (E onward) are used for personal emails and filled by
+   imports.
 5. For each ward tab, add rows for the callings you want to track. Column A
-   is Organization, B is Forwarding Email, C is `<ward_code> Calling Name`.
+   is Organization, B is Forwarding Email, C is `<ward_code> Calling Name`,
+   D is the human-readable Name (optional; not read by this system).
 6. Deploy the Apps Script web app as described in
    [`apps-script-deploy.md`](./apps-script-deploy.md).
 7. Configure the extension per [`extension-config.md`](./extension-config.md).
@@ -140,4 +162,4 @@ deletes rows.
 - [`position-mapping.md`](./position-mapping.md) — the natural match rule
   and overrides.
 - [`email-merge-algorithm.md`](./email-merge-algorithm.md) — exactly what
-  the import does to column D onward.
+  the import does to column E onward.

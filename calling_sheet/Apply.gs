@@ -1,7 +1,8 @@
 /**
- * Applies user-approved email operations to a ward tab. Columns A, B, C
- * are never touched — writes always start at column D (FIRST_EMAIL_COLUMN
- * defined in Snapshot.gs).
+ * Applies user-approved email operations to a ward tab. Columns A, B,
+ * C, and D are never touched — writes always start at column E
+ * (FIRST_EMAIL_COLUMN defined in Snapshot.gs). Column D holds the
+ * human-readable Name and is intentionally skipped.
  *
  * See doc/architecture.md for the wire format and doc/email-merge-
  * algorithm.md for the sanity check semantics.
@@ -11,6 +12,9 @@
  * Public entry — called by Code.gs doPost router for action=apply.
  *
  * @param {Object} body  {secret, ward_name, operations, generated_at}
+ *   operations is an array of {row_index, new_emails, new_name?}.
+ *   new_name is optional; when present (including empty string), it
+ *   is written to column D. Absent leaves column D untouched.
  */
 function handleApply(body) {
   if (!body || typeof body !== 'object') {
@@ -65,6 +69,25 @@ function handleApply(body) {
   }
 
   var allValues = tab.getDataRange().getValues();
+
+  // Verify the sheet still has the expected column layout before any
+  // write lands. `verifyWardTabHeaders` is defined in Snapshot.gs.
+  var headerCheck = verifyWardTabHeaders(allValues[0]);
+  if (!headerCheck.ok) {
+    logEvent('ERROR', 'Apply rejected: ward tab header mismatch', {
+      ward_code: wardMeta.ward_code,
+      expected: headerCheck.expected,
+      got: headerCheck.got,
+    });
+    return jsonResponse({
+      ok: false,
+      error: 'header_mismatch',
+      ward_code: wardMeta.ward_code,
+      expected: headerCheck.expected,
+      got: headerCheck.got,
+    });
+  }
+
   var applied = 0;
   var skipped = 0;
   var errors = [];
@@ -104,13 +127,19 @@ function applyOneOperation(tab, allValues, op, wardMeta) {
   if (!Array.isArray(op.new_emails)) {
     return { applied: false, error: { ward: wardMeta.ward_code, row_index: rowIdx, error: 'invalid_new_emails' } };
   }
+  // new_name is optional; if present it must be a string (empty string
+  // clears the cell). Absent means "don't touch column D at all".
+  if (op.new_name !== undefined && typeof op.new_name !== 'string') {
+    return { applied: false, error: { ward: wardMeta.ward_code, row_index: rowIdx, error: 'invalid_new_name' } };
+  }
 
   var rowVals = allValues[rowIdx - 1];
   if (!rowVals) {
     return { applied: false, error: { ward: wardMeta.ward_code, row_index: rowIdx, error: 'row_out_of_bounds' } };
   }
 
-  // Collect non-empty existing cells from column D onward.
+  // Collect non-empty existing cells from column E onward (column D
+  // is the reserved Name column; see Snapshot.gs).
   var existing = [];
   var lastUsedCol1Indexed = FIRST_EMAIL_COLUMN - 1;
   for (var c = FIRST_EMAIL_COLUMN - 1; c < rowVals.length; c++) {
@@ -136,12 +165,16 @@ function applyOneOperation(tab, allValues, op, wardMeta) {
   }
 
   try {
+    // Write the Name cell (column D) if the client asked us to.
+    if (typeof op.new_name === 'string') {
+      tab.getRange(rowIdx, NAME_COLUMN).setValue(op.new_name);
+    }
     // Clear the existing email range, if any.
     if (lastUsedCol1Indexed >= FIRST_EMAIL_COLUMN) {
       var clearWidth = lastUsedCol1Indexed - FIRST_EMAIL_COLUMN + 1;
       tab.getRange(rowIdx, FIRST_EMAIL_COLUMN, 1, clearWidth).clearContent();
     }
-    // Write the new list.
+    // Write the new email list.
     if (op.new_emails.length > 0) {
       tab.getRange(rowIdx, FIRST_EMAIL_COLUMN, 1, op.new_emails.length)
          .setValues([op.new_emails.slice()]);

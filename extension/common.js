@@ -60,18 +60,20 @@ function isRealEmail(s) {
  * Collapses callings that share the same lcr_id.
  *
  * Singletons (only one calling for an id) pass through with their
- * original `email` intact — including the diagnostic sentinels `'N/A'`
- * (no email on file at LCR) and `'Error'` (fetch failed), which the
- * table renders so the user can see the state.
+ * original `email` and `person` intact — including the diagnostic
+ * email sentinels `'N/A'` (no email on file at LCR) and `'Error'`
+ * (fetch failed), which the table renders so the user can see the
+ * state.
  *
  * Merged groups (2+ real callings for the same id) have their emails
- * concatenated with commas. Sentinels are filtered out of the merge
- * only, so we don't produce malformed strings like `",foo@bar"` or
- * `"N/A,foo@bar"`. The non-sentinel emails from every merged calling
- * are preserved.
+ * concatenated with commas; email sentinels are dropped so we don't
+ * produce malformed strings like `",foo@bar"` or `"N/A,foo@bar"`.
+ * Person names from every real member of the group are joined with
+ * `", "` into `person` so the sheet's Name column can show everyone
+ * in the row.
  *
  * @param {Array<Object>} callings Array of calling objects with `calling`,
- *     `organization`, `isVacant`, and (optionally) `email`.
+ *     `organization`, `isVacant`, and (optionally) `email`, `person`.
  * @returns {Array<Object>} The merged list in original iteration order.
  */
 function mergeCallings(callings) {
@@ -102,9 +104,10 @@ function mergeCallings(callings) {
       continue;
     }
 
-    // Both real — start tracking real emails only (sentinels dropped).
-    // Lazy-initialized so we only pay this cost when an id actually
-    // merges, which lets singletons keep their original .email above.
+    // Both real — start tracking real emails only (sentinels dropped)
+    // and person names in parallel. Lazy-initialized so we only pay
+    // this cost when an id actually merges; singletons keep their
+    // original .email and .person values above.
     if (!existingGroup._emailList) {
       existingGroup._emailList = isRealEmail(existingGroup.email)
         ? [existingGroup.email]
@@ -113,16 +116,27 @@ function mergeCallings(callings) {
     if (isRealEmail(currentItem.email)) {
       existingGroup._emailList.push(currentItem.email);
     }
+    if (!existingGroup._nameList) {
+      existingGroup._nameList = existingGroup.person ? [existingGroup.person] : [];
+    }
+    if (currentItem.person) {
+      existingGroup._nameList.push(currentItem.person);
+    }
     existingGroup.multiplePeople = true;
     existingGroup.numberOfPeople = (existingGroup.numberOfPeople || 1) + 1;
   }
 
-  // Rebuild .email from the filtered list only for groups that merged.
-  // Singletons have no _emailList and keep their original .email.
+  // Rebuild .email and .person from the filtered lists only for groups
+  // that merged. Singletons have no scratch lists and keep their
+  // original values.
   for (const group of callingGroups.values()) {
     if (group._emailList) {
       group.email = group._emailList.join(',');
       delete group._emailList;
+    }
+    if (group._nameList) {
+      group.person = group._nameList.join(', ');
+      delete group._nameList;
     }
   }
   return Array.from(callingGroups.values());

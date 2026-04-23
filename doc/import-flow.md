@@ -120,7 +120,9 @@ The server:
    the snapshot was generated).
 3. For each operation, re-verifies that no internal-domain alias would
    be dropped.
-4. Writes the new email list to column D onward.
+4. Writes the new Name to column D (when the operation carries
+   `new_name`; single-person callings, merged multi-person callings,
+   and vacates all do) and the new email list to column E onward.
 5. Returns a summary `{applied, skipped, errors}`.
 
 A toast at the bottom of the window shows the result:
