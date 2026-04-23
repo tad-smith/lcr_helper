@@ -8,7 +8,7 @@ The repository contains three subsystems that work together:
 
 | Path | What it is |
 |------|------------|
-| [`extension/`](./extension/) | Chrome extension (Manifest V3). Injects an "Extract Callings" button on the LCR Callings by Organization page; opens a standalone filterable/exportable callings table in a new tab. Also hosts the "Import into Calling Sheet" flow. |
+| [`extension/`](./extension/) | Chrome extension (Manifest V3). Injects an "Extract Callings" button on the LCR Callings by Organization page; opens a standalone filterable/exportable callings table in a new tab. Also hosts the "Import into Calling Sheet" flow, and a "Copy Salvation and Exaltation Metrics" button on the Ward Quarterly Report page. |
 | [`calling_sheet/`](./calling_sheet/) | Google Apps Script web app (managed with `clasp`). Exposes `doGet` / `doPost` endpoints that the extension calls to read and write the "Email Forwarding Addresses" Google Sheet. |
 | [`doc/`](./doc/) | All repo documentation: architecture, setup, algorithms, changelog. |
 
@@ -34,6 +34,10 @@ The repository contains three subsystems that work together:
   extracted callings with a per-ward "Email Forwarding Addresses" sheet.
   Never overwrites user-maintained columns (Organization, Forwarding Email,
   Position) or custom rows that don't correspond to an LCR calling.
+- **Ward Quarterly Report → stake tracker**: one-click copy of the ten
+  Salvation-and-Exaltation metrics, shaped as a single column (blanks
+  included for section headers / spacers) plus a bold "{year} Q{quarter}"
+  header, for pasting directly into the stake's quarterly-tracker sheet.
 
 ## Install
 

@@ -7,10 +7,52 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
-## 2026-04-22 — extension version 1.2.3.1
+## 2026-04-22 — extension version 1.3.0.3
 
-- `extension/manifest.json`: bump to `1.2.3.1` for the LCR name-
-  format normalization in `content-script.js::formatPersonName`.
+- `extension/utils.js`: restyle `.extract-callings-button` to match
+  the quarterly-report button — solid `rgb(178, 0, 0)` background,
+  white text, `rgb(153, 0, 0)` hover, plus a `:disabled` rule.
+  Drops the prior teal outline + faint diagonal-gradient look.
+  Visual consistency only; no behavioral change.
+- `extension/manifest.json`: bump to `1.3.0.3`.
+
+## 2026-04-22 — extension version 1.3.0.2
+
+- `extension/manifest.json`: bump to `1.3.0.2` for the quarterly
+  report extractor. Adds a second content-script entry matching
+  `https://lcr.churchofjesuschrist.org/report/quarterly-report*`
+  that loads `quarterly-report.js`. Independent from the
+  `mlt/orgs*` calling-sheet pipeline — no shared modules.
+
+## 2026-04-22 — quarterly report Salvation-and-Exaltation extractor
+
+New self-contained feature for stake-tracker maintainers. On LCR's
+Ward Quarterly Report page, a red "Copy Salvation and Exaltation
+Metrics" button appears next to the page's Print button. Clicking
+it extracts ten Work-of-Salvation metrics (sacrament attendance,
+temple-recommend %, youth temple recommends, recent-convert temple
+names / priesthood, EQ & RS ministering interviews, convert
+baptisms, YSA missionaries, temple-name submissions) plus a bold
+"{year} Q{quarter}" header, laid out as a single column so pasting
+into the first data cell of a quarter column fills the right rows
+— including intentionally blank rows for section headers and
+spacers.
+
+- `extension/quarterly-report.js` (new): MutationObserver-driven
+  button injection; anchors after the page's Print button, falling
+  back to the `<h1>` if Print hasn't rendered yet. Waits for
+  `[role="grid"] tbody tr` before injecting so the button never
+  appears ahead of the data. `QR_MAPPING` is the single source of
+  truth for which LCR line number + column flows to which sheet
+  row; edit it there if the sheet layout changes. Uses the modern
+  `ClipboardItem` API so the header cell pastes bold into Sheets /
+  Excel; falls back to `writeText` for the plain-text payload.
+  "---" in LCR renders as "-" by default, or "0" for cells flagged
+  `dashToZero` (the baptism count).
+- No new permissions required — the existing `activeTab` /
+  `scripting` surface + an additional `content_scripts` matcher
+  are all this feature needs. Clipboard write uses the page's
+  user-gesture context, so `clipboardWrite` is not necessary.
 
 ## 2026-04-22 — email_forwarding_sync: verify ward-tab headers
 

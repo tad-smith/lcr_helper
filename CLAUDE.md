@@ -8,7 +8,7 @@ Three sibling subsystems plus a shared documentation tree:
 
 | Path | What it is | Runs where |
 |------|-----------|-----------|
-| `extension/` | Chrome extension (Manifest V3), vanilla JS, no build step. Injects an *Extract Callings* button on LCR and hosts the callings-table page + *Import into Calling Sheet* flow. | Chrome |
+| `extension/` | Chrome extension (Manifest V3), vanilla JS, no build step. Injects an *Extract Callings* button on LCR and hosts the callings-table page + *Import into Calling Sheet* flow. Also adds a *Copy Salvation and Exaltation Metrics* button on the quarterly-report page (standalone, unrelated to the calling-sheet pipeline). | Chrome |
 | `calling_sheet/` | Google Apps Script web app, managed with `clasp`. Exposes `doGet` / `doPost` endpoints consumed by the extension. | Apps Script runtime |
 | `doc/` | All documentation + the **single** repo-wide `CHANGELOG.md`. | — |
 
@@ -26,8 +26,9 @@ content to `doc/CHANGELOG.md`. Each entry prefixes the subsystem
 
 ## `extension/`
 
-A Manifest V3 extension that runs in four JS contexts — understanding
-the isolation between them is the key to the codebase:
+A Manifest V3 extension. The callings-sheet pipeline runs in four JS
+contexts — understanding the isolation between them is the key to that
+part of the codebase:
 
 1. **Page context** (`interceptor.js`) — injected via
    `web_accessible_resources` so it can monkey-patch `window.fetch`.
@@ -47,11 +48,22 @@ the isolation between them is the key to the codebase:
    standalone extension-origin page. Manages filtering, saved filters,
    copy-to-clipboard, and the import flow.
 
+A second, independent content-script entry lives alongside it:
+
+5. **Quarterly report content script** (`quarterly-report.js`) —
+   matches `https://lcr.churchofjesuschrist.org/report/quarterly-report*`.
+   Shares **no** modules with the pipeline above (no `common.js`, no
+   `constants.js`) — it's a single self-contained file. Extracts ten
+   Work-of-Salvation metrics from the page's table and writes them to
+   the clipboard as a single-column HTML+plain payload for pasting
+   into a stake tracker spreadsheet. Unrelated to the calling-sheet
+   flow.
+
 ### File roles (extension)
 
 | File | Purpose |
 |------|---------|
-| `manifest.json` | MV3 manifest. Content script matches `mlt/orgs*`; `interceptor.js` is in `web_accessible_resources`; `host_permissions` include `script.google.com/*` and `script.googleusercontent.com/*` for the import. |
+| `manifest.json` | MV3 manifest. Two content-script entries: one for `mlt/orgs*` (the calling-sheet pipeline) and one for `report/quarterly-report*` (the quarterly-report copy button). `interceptor.js` is in `web_accessible_resources`; `host_permissions` include `script.google.com/*` and `script.googleusercontent.com/*` for the import. |
 | `background.js` | Service worker — listens for `openCallingsTable`, opens the callings-table tab. |
 | `interceptor.js` | Page-world fetch wrapper. |
 | `content-script.js` | Button injection via `MutationObserver` on `#role-picker-container`; email fetching; ward-name scraping. |
@@ -63,6 +75,7 @@ the isolation between them is the key to the codebase:
 | `generated-table-script.js` | Filter logic, saved-filter CRUD, copy-to-clipboard. Exposes `{callings, collapsedCallings, ward}` on `window.LCRHelper` for sibling scripts. |
 | `callings-sheet-settings.js` | Settings modal — loads/saves `chrome.storage.local['callingSheetSettings']`; exposes `window.LCRHelperSettings`. |
 | `callings-sheet-import.js` | Import flow — snapshot fetch, client-side diff, review modal, apply POST, toast. Mirrors the email-merge algorithm in `calling_sheet/EmailMerge.gs`. |
+| `quarterly-report.js` | Standalone content script for `report/quarterly-report*`. Injects the *Copy Salvation and Exaltation Metrics* button; builds a single-column HTML + plain-text clipboard payload from the report table. `QR_MAPPING` is the source of truth for sheet-row ↔ LCR-line mapping. Shares no code with the calling-sheet pipeline. |
 | `images/` | Extension icons + gear icon (the settings button uses the inline `⚙`; the SVG is a fallback). |
 
 ### Conventions and gotchas (extension)
@@ -103,6 +116,15 @@ the isolation between them is the key to the codebase:
   update `doc/email-merge-algorithm.md` with any semantic changes.
 - **Settings never log / render.** Never add a code path that prints
   `sharedSecret` to console or into the DOM outside its password input.
+- **`quarterly-report.js` is an island.** No `common.js`,
+  `constants.js`, or `utils.js` on the match. If you're tempted to
+  factor shared helpers across it and the calling-sheet content
+  script, weigh the cost of growing the loaded surface on the
+  quarterly-report page against what's actually being shared.
+  `QR_MAPPING` encodes the *sheet's* row layout, not LCR's — if the
+  stake tracker spreadsheet rearranges rows, edit the mapping.
+  Conversely, `QR_COL_ACTUAL` / `QR_COL_CURRENT_YEAR` are the LCR
+  side; they break if LCR reshapes the quarterly-report table.
 
 ## `calling_sheet/`
 

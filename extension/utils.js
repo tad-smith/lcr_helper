@@ -45,11 +45,13 @@ function addExtensionStyles() {
         line-height: 1.2;
         font-size: .85rem;
         padding: 0 calc(-1px + 15px);
-        background: linear-gradient(150deg, rgba(255, 255, 255, 0) 75%, rgba(0, 97, 132, 0.13));
-        color: rgb(0, 97, 132);
-        border: 1px solid rgb(0, 97, 132);
+        background: rgb(178, 0, 0);
+        color: #fff;
+        border: 1px solid rgb(178, 0, 0);
         height: 33px;
     }
+      .extract-callings-button:hover { background: rgb(153, 0, 0); border-color: rgb(153, 0, 0); }
+      .extract-callings-button:disabled { opacity: 0.6; cursor: default; }
   `));
   document.head.appendChild(styleElement);
 }
