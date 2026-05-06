@@ -164,6 +164,13 @@ real file lands.
   operation (`would_drop_internal_alias`) if any existing
   `@<internal_domain>` cell is absent from `new_emails`. This is a
   defense against a misbehaving extension; don't remove it.
+- **Sanity check on `keep` cell-notes.** `Apply.gs` also runs
+  `verifyKeptCellsPreserved`, rejecting an operation
+  (`would_drop_kept_cell`) if any existing cell whose Sheets note
+  matches `\bkeep\b` is absent from `new_emails`. The snapshot reads
+  notes via `getDataRange().getNotes()` and emits them as
+  `email_notes` parallel to `emails`; the apply rewrites notes via
+  `setNotes()` so a kept cell's note travels with it across reorders.
 - **Header verification.** Both `handleSnapshot` and `handleApply`
   call `verifyWardTabHeaders` against row 1 before any read or write
   that depends on column layout. Mismatch returns

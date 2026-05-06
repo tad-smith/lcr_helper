@@ -7,6 +7,58 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-05-05 — extension version 1.4.0.1
+
+- `extension/generated-table-script.js`: add
+  `Elders Quorum Presidency:Elders-Quorum-Assistant-Secretary` to
+  `SYSTEM_FILTERS["Email Alias Filter"]` so the calling shows up in
+  the default filtered view alongside the rest of the EQ presidency.
+  Re-synced from code on load — no user action required.
+- `extension/manifest.json`: bump to `1.4.0.1`.
+
+## 2026-05-05 — `keep` cell-note preserves emails through import — extension version 1.4.0.0
+
+New escape hatch for personal emails the ward wants to retain on a
+calling row even when LCR no longer lists them. Right-click the cell
+in Sheets, *Insert note*, and type a note containing the word
+`keep` (whole-word, case-insensitive — `\bkeep\b`). The cell is
+preserved verbatim across imports and the note travels with it.
+
+- `doc/email-merge-algorithm.md`: describe the `keep` rule. Updated
+  Inputs to include `existingNotes`, Output to include a parallel
+  `notes` array, and the pseudocode to use both. Two new worked
+  examples (#8 plain `keep`; #9 `keep` overrides `annotation_lost`).
+  Server-side sanity-check section now lists both
+  `would_drop_internal_alias` and `would_drop_kept_cell`.
+- `extension/callings-sheet-import.js`: `mergeEmails` accepts
+  `existingNotes` and returns `{emails, notes, warnings}`. New
+  `hasKeepNote` helper. `computeDiff` threads `row.email_notes`
+  through and stamps `new_notes` on each apply operation. The
+  `keep` branch fires before the `annotation_lost` branch, so a kept
+  cell's GoogleAccount annotation survives intact.
+- `calling_sheet/Snapshot.gs`: read `getDataRange().getNotes()` and
+  emit `email_notes` parallel to `emails` per row.
+- `calling_sheet/EmailMerge.gs`: server-side `mergeEmails` mirrors
+  the new signature. New `hasKeepNote` helper and
+  `verifyKeptCellsPreserved` defense that parallels
+  `verifyInternalAliasesPreserved` — refuses an operation that
+  would drop a `keep`-noted cell.
+- `calling_sheet/Apply.gs`: accepts optional `new_notes` (string[]
+  same length as `new_emails`), runs the kept-cell defense, and on
+  write calls `clearNote()` over the cleared range followed by
+  `setNotes()` on the new range so the note travels with the email
+  rather than the column position.
+- `doc/import-flow.md`: add the `keep` escape hatch to the
+  "Data you will never lose" section.
+- `CLAUDE.md`: document the new `keep` sanity check in the
+  `calling_sheet/` gotchas list.
+- `extension/manifest.json`: bump to `1.4.0.0` (minor — wire-format
+  change: snapshot now includes `email_notes`; apply now accepts
+  `new_notes`. Older clients still work because both fields are
+  treated as optional on read; older servers paired with new
+  clients lose the note-rewrite, which is the pre-existing
+  behavior).
+
 ## 2026-04-22 — extension version 1.3.0.3
 
 - `extension/utils.js`: restyle `.extract-callings-button` to match

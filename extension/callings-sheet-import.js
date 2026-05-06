@@ -8,6 +8,7 @@
 /* eslint-disable no-console */
 
 const ANNOTATION_RE = /^(.+?)\s*\[GoogleAccount:\s*([^\]]+?)\s*\]\s*$/i;
+const KEEP_RE = /\bkeep\b/i;
 
 /* ───────── Email algorithm ───────── */
 
@@ -23,21 +24,39 @@ function isInternalAddr(addr, internalDomain) {
   return String(addr).toLowerCase().endsWith('@' + String(internalDomain).toLowerCase());
 }
 
-function mergeEmails({ existing, lcrEmails, internalDomain }) {
+function hasKeepNote(note) {
+  return !!note && KEEP_RE.test(String(note));
+}
+
+function mergeEmails({ existing, existingNotes, lcrEmails, internalDomain }) {
   const lcrLower = new Set(lcrEmails.map((e) => String(e).toLowerCase()));
+  const notes = existingNotes || [];
   const personal = [];
+  const personalNotes = [];
   const internals = [];
+  const internalNotes = [];
   const consumed = new Set();
   const warnings = [];
 
-  for (const raw of existing) {
+  for (let i = 0; i < existing.length; i++) {
+    const raw = existing[i];
+    const note = notes[i] || '';
     const parsed = parseEmailCell(raw);
     const lower = parsed.canonical.toLowerCase();
 
     if (isInternalAddr(parsed.canonical, internalDomain)) {
       internals.push(raw);
+      internalNotes.push(note);
     } else if (lcrLower.has(lower)) {
       personal.push(raw);
+      personalNotes.push(note);
+      consumed.add(lower);
+    } else if (hasKeepNote(note)) {
+      // Cell carries a "keep" sticky note → preserve verbatim regardless
+      // of LCR membership. Mark consumed so a same-address LCR entry
+      // doesn't append a duplicate.
+      personal.push(raw);
+      personalNotes.push(note);
       consumed.add(lower);
     } else if (parsed.annotation) {
       warnings.push({
@@ -50,11 +69,18 @@ function mergeEmails({ existing, lcrEmails, internalDomain }) {
   }
 
   for (const addr of lcrEmails) {
-    if (!consumed.has(String(addr).toLowerCase())) personal.push(addr);
+    if (!consumed.has(String(addr).toLowerCase())) {
+      personal.push(addr);
+      personalNotes.push('');
+    }
   }
 
   // Internal aliases always trail all personal emails.
-  return { emails: [...personal, ...internals], warnings };
+  return {
+    emails: [...personal, ...internals],
+    notes: [...personalNotes, ...internalNotes],
+    warnings,
+  };
 }
 
 function splitEmails(s) {
@@ -96,8 +122,9 @@ function computeDiff(snapshot, collapsedCallings) {
     const lcrEmails = calling.isVacant ? [] : splitEmails(calling.email);
     const beforeName = row.name || '';
     const afterName = calling.isVacant ? '' : (calling.person || '');
-    const { emails: newEmails, warnings } = mergeEmails({
+    const { emails: newEmails, notes: newNotes, warnings } = mergeEmails({
       existing: row.emails,
+      existingNotes: row.email_notes || [],
       lcrEmails,
       internalDomain: snapshot.internal_domain,
     });
@@ -115,6 +142,7 @@ function computeDiff(snapshot, collapsedCallings) {
       calling,
       before: row.emails,
       after: newEmails,
+      afterNotes: newNotes,
       beforeName,
       afterName,
       warnings,
@@ -522,6 +550,7 @@ function openReviewModal({ snapshot, diff, settings, ctx }) {
         ops.push({
           row_index: idx,
           new_emails: entry.after,
+          new_notes: entry.afterNotes,
           new_name: entry.afterName,
         });
       }
@@ -657,6 +686,7 @@ async function handleImportClick() {
 window.LCRHelperImport = {
   parseEmailCell,
   isInternalAddr,
+  hasKeepNote,
   mergeEmails,
   splitEmails,
   computeDiff,

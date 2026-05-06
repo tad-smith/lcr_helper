@@ -22,6 +22,7 @@ const SYSTEM_FILTERS = [
       "Elders Quorum Presidency:Elders-Quorum-First-Counselor",
       "Elders Quorum Presidency:Elders-Quorum-Second-Counselor",
       "Elders Quorum Presidency:Elders-Quorum-Secretary",
+      "Elders Quorum Presidency:Elders-Quorum-Assistant-Secretary",
       "Relief Society Presidency:Relief-Society-President",
       "Relief Society Presidency:Relief-Society-First-Counselor",
       "Relief Society Presidency:Relief-Society-Second-Counselor",

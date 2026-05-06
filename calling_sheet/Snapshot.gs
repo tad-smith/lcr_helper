@@ -68,7 +68,12 @@ function handleSnapshot(wardName) {
     return jsonResponse({ ok: false, error: 'ward_tab_missing', ward_code: wardCode });
   }
 
-  var values = tab.getDataRange().getValues();
+  var dataRange = tab.getDataRange();
+  var values = dataRange.getValues();
+  // Cell notes parallel to `values`. Same shape; empty string for cells
+  // without a note. Used to honor the `keep` rule per
+  // doc/email-merge-algorithm.md.
+  var notes = dataRange.getNotes();
 
   var headerCheck = verifyWardTabHeaders(values[0]);
   if (!headerCheck.ok) {
@@ -102,9 +107,17 @@ function handleSnapshot(wardName) {
     var name = trim(raw[NAME_COLUMN - 1]);
 
     var emails = [];
+    var emailNotes = [];
+    var noteRow = notes[i] || [];
     for (var c = FIRST_EMAIL_COLUMN - 1; c < raw.length; c++) {
       var cell = trim(raw[c]);
-      if (cell) emails.push(cell);
+      if (cell) {
+        emails.push(cell);
+        // getNotes() returns '' for unannotated cells. Don't trim — a
+        // user might type "  keep " with trailing whitespace and \bkeep\b
+        // still matches; trimming is irrelevant either way.
+        emailNotes.push(noteRow[c] == null ? '' : String(noteRow[c]));
+      }
     }
 
     var derived = deriveLcrId(organization, position, wardCode, overrides);
@@ -117,6 +130,7 @@ function handleSnapshot(wardName) {
       override_applied: derived.override_applied,
       name: name,
       emails: emails,
+      email_notes: emailNotes,
     });
   }
 

@@ -12,7 +12,10 @@
  * Public entry — called by Code.gs doPost router for action=apply.
  *
  * @param {Object} body  {secret, ward_name, operations, generated_at}
- *   operations is an array of {row_index, new_emails, new_name?}.
+ *   operations is an array of {row_index, new_emails, new_notes?, new_name?}.
+ *   new_notes, when present, must be a string[] of equal length to
+ *   new_emails — written via setNotes() so that `keep` annotations stay
+ *   pinned to the emails they were attached to.
  *   new_name is optional; when present (including empty string), it
  *   is written to column D. Absent leaves column D untouched.
  */
@@ -68,7 +71,11 @@ function handleApply(body) {
     return jsonResponse({ ok: false, error: 'ward_tab_missing', ward_code: wardMeta.ward_code });
   }
 
-  var allValues = tab.getDataRange().getValues();
+  var dataRange = tab.getDataRange();
+  var allValues = dataRange.getValues();
+  // Notes parallel to allValues — used by applyOneOperation to defend
+  // against a misbehaving extension dropping `keep`-annotated cells.
+  var allNotes = dataRange.getNotes();
 
   // Verify the sheet still has the expected column layout before any
   // write lands. `verifyWardTabHeaders` is defined in Snapshot.gs.
@@ -94,7 +101,7 @@ function handleApply(body) {
 
   for (var i = 0; i < body.operations.length; i++) {
     var op = body.operations[i];
-    var result = applyOneOperation(tab, allValues, op, wardMeta);
+    var result = applyOneOperation(tab, allValues, allNotes, op, wardMeta);
     if (result.applied) {
       applied++;
     } else {
@@ -116,7 +123,7 @@ function handleApply(body) {
 /**
  * Apply a single operation. Returns {applied: bool, error: Object?}.
  */
-function applyOneOperation(tab, allValues, op, wardMeta) {
+function applyOneOperation(tab, allValues, allNotes, op, wardMeta) {
   if (!op || typeof op !== 'object') {
     return { applied: false, error: { ward: wardMeta.ward_code, error: 'invalid_operation' } };
   }
@@ -126,6 +133,19 @@ function applyOneOperation(tab, allValues, op, wardMeta) {
   }
   if (!Array.isArray(op.new_emails)) {
     return { applied: false, error: { ward: wardMeta.ward_code, row_index: rowIdx, error: 'invalid_new_emails' } };
+  }
+  // new_notes is optional. When present, must be a string[] equal in
+  // length to new_emails. Absent means "don't write notes" — the existing
+  // notes stay attached to whatever cell positions they currently occupy.
+  if (op.new_notes !== undefined) {
+    if (!Array.isArray(op.new_notes) || op.new_notes.length !== op.new_emails.length) {
+      return { applied: false, error: { ward: wardMeta.ward_code, row_index: rowIdx, error: 'invalid_new_notes' } };
+    }
+    for (var n = 0; n < op.new_notes.length; n++) {
+      if (typeof op.new_notes[n] !== 'string') {
+        return { applied: false, error: { ward: wardMeta.ward_code, row_index: rowIdx, error: 'invalid_new_notes' } };
+      }
+    }
   }
   // new_name is optional; if present it must be a string (empty string
   // clears the cell). Absent means "don't touch column D at all".
@@ -137,15 +157,20 @@ function applyOneOperation(tab, allValues, op, wardMeta) {
   if (!rowVals) {
     return { applied: false, error: { ward: wardMeta.ward_code, row_index: rowIdx, error: 'row_out_of_bounds' } };
   }
+  var rowNotes = (allNotes && allNotes[rowIdx - 1]) || [];
 
   // Collect non-empty existing cells from column E onward (column D
-  // is the reserved Name column; see Snapshot.gs).
+  // is the reserved Name column; see Snapshot.gs). Track the parallel
+  // notes so the kept-cell defense and the note rewrite can both
+  // reason about them.
   var existing = [];
+  var existingNotes = [];
   var lastUsedCol1Indexed = FIRST_EMAIL_COLUMN - 1;
   for (var c = FIRST_EMAIL_COLUMN - 1; c < rowVals.length; c++) {
     var v = trim(rowVals[c]);
     if (v) {
       existing.push(v);
+      existingNotes.push(rowNotes[c] == null ? '' : String(rowNotes[c]));
       lastUsedCol1Indexed = c + 1;
     }
   }
@@ -164,20 +189,41 @@ function applyOneOperation(tab, allValues, op, wardMeta) {
     };
   }
 
+  // Refuse operations that would drop a cell flagged with a `keep` note.
+  var keepCheck = verifyKeptCellsPreserved(existing, existingNotes, op.new_emails);
+  if (!keepCheck.ok) {
+    return {
+      applied: false,
+      error: {
+        ward: wardMeta.ward_code,
+        row_index: rowIdx,
+        error: 'would_drop_kept_cell',
+        missing: keepCheck.missing,
+      },
+    };
+  }
+
   try {
     // Write the Name cell (column D) if the client asked us to.
     if (typeof op.new_name === 'string') {
       tab.getRange(rowIdx, NAME_COLUMN).setValue(op.new_name);
     }
-    // Clear the existing email range, if any.
+    // Clear the existing email range, if any. clearContent() leaves
+    // notes alone, so we clear notes separately to avoid orphan
+    // annotations on cells whose email moved.
     if (lastUsedCol1Indexed >= FIRST_EMAIL_COLUMN) {
       var clearWidth = lastUsedCol1Indexed - FIRST_EMAIL_COLUMN + 1;
-      tab.getRange(rowIdx, FIRST_EMAIL_COLUMN, 1, clearWidth).clearContent();
+      var clearRange = tab.getRange(rowIdx, FIRST_EMAIL_COLUMN, 1, clearWidth);
+      clearRange.clearContent();
+      if (op.new_notes !== undefined) clearRange.clearNote();
     }
     // Write the new email list.
     if (op.new_emails.length > 0) {
-      tab.getRange(rowIdx, FIRST_EMAIL_COLUMN, 1, op.new_emails.length)
-         .setValues([op.new_emails.slice()]);
+      var writeRange = tab.getRange(rowIdx, FIRST_EMAIL_COLUMN, 1, op.new_emails.length);
+      writeRange.setValues([op.new_emails.slice()]);
+      if (op.new_notes !== undefined) {
+        writeRange.setNotes([op.new_notes.slice()]);
+      }
     }
     return { applied: true };
   } catch (writeErr) {
