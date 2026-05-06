@@ -13,6 +13,13 @@
  * @return {{canonical: string, annotation: (string|null), raw: string}}
  */
 var ANNOTATION_RE = /^(.+?)\s*\[GoogleAccount:\s*([^\]]+?)\s*\]\s*$/i;
+var KEEP_RE = /\bkeep\b/i;
+
+/** True if the cell-level note string contains the `keep` keyword. */
+function hasKeepNote(note) {
+  if (!note) return false;
+  return KEEP_RE.test(String(note));
+}
 
 function parseEmailCell(raw) {
   var s = raw === null || raw === undefined ? '' : String(raw);
@@ -64,33 +71,68 @@ function verifyInternalAliasesPreserved(existing, newEmails, internalDomain) {
 }
 
 /**
+ * Sanity check run in Apply.gs before writing a row.
+ *
+ * For every cell in `existing` whose parallel note in `existingNotes`
+ * matches \bkeep\b, verify the same cell appears verbatim in `newEmails`.
+ * Defense against a misbehaving extension that ignored the keep rule.
+ */
+function verifyKeptCellsPreserved(existing, existingNotes, newEmails) {
+  var newSet = {};
+  for (var i = 0; i < newEmails.length; i++) {
+    newSet[String(newEmails[i])] = true;
+  }
+  var missing = [];
+  for (var j = 0; j < existing.length; j++) {
+    var note = existingNotes && existingNotes[j];
+    if (!hasKeepNote(note)) continue;
+    var raw = existing[j];
+    if (!newSet[String(raw)]) {
+      missing.push(raw);
+    }
+  }
+  return { ok: missing.length === 0, missing: missing };
+}
+
+/**
  * Full merge algorithm — server-side fallback / testing aid. The
  * extension computes this client-side and posts the result; Apply.gs only
  * runs the sanity check. Kept in sync with the pseudocode in
  * doc/email-merge-algorithm.md.
  *
  * @param {string[]} existing
+ * @param {string[]} existingNotes  Parallel cell-note array; '' for no note.
  * @param {string[]} lcrEmails
  * @param {string} internalDomain
- * @return {{emails: string[], warnings: Object[]}}
+ * @return {{emails: string[], notes: string[], warnings: Object[]}}
  */
-function mergeEmails(existing, lcrEmails, internalDomain) {
+function mergeEmails(existing, existingNotes, lcrEmails, internalDomain) {
+  var notes = existingNotes || [];
   var lcrLower = {};
   for (var i = 0; i < lcrEmails.length; i++) {
     lcrLower[String(lcrEmails[i]).toLowerCase()] = true;
   }
   var personal = [];
+  var personalNotes = [];
   var internals = [];
+  var internalNotes = [];
   var consumed = {};
   var warnings = [];
   for (var j = 0; j < existing.length; j++) {
     var raw = existing[j];
+    var note = notes[j] || '';
     var parsed = parseEmailCell(raw);
     var lower = parsed.canonical.toLowerCase();
     if (isInternalAddr(parsed.canonical, internalDomain)) {
       internals.push(raw);
+      internalNotes.push(note);
     } else if (lcrLower[lower]) {
       personal.push(raw);
+      personalNotes.push(note);
+      consumed[lower] = true;
+    } else if (hasKeepNote(note)) {
+      personal.push(raw);
+      personalNotes.push(note);
       consumed[lower] = true;
     } else if (parsed.annotation) {
       warnings.push({
@@ -105,8 +147,13 @@ function mergeEmails(existing, lcrEmails, internalDomain) {
     var l = String(lcrEmails[k]).toLowerCase();
     if (!consumed[l]) {
       personal.push(lcrEmails[k]);
+      personalNotes.push('');
     }
   }
   // Internal aliases always trail all personal emails.
-  return { emails: personal.concat(internals), warnings: warnings };
+  return {
+    emails: personal.concat(internals),
+    notes: personalNotes.concat(internalNotes),
+    warnings: warnings,
+  };
 }

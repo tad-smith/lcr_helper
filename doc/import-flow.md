@@ -180,10 +180,21 @@ The import is deliberately conservative. It **never**:
 - Writes to columns A, B, or C.
 - Adds or deletes rows.
 - Drops an email address ending in `@<internal_domain>`.
+- Drops an email cell whose Sheets *note* contains the word `keep`
+  (case-insensitive, whole-word).
 - Modifies a row in the *Custom or Unmatched* section.
 
-Both the extension and the server enforce the internal-alias rule; a
-misbehaving client cannot get past it.
+Both the extension and the server enforce the internal-alias rule and
+the `keep`-note rule; a misbehaving client cannot get past either.
+
+### Pinning an email with `keep`
+
+To preserve a personal email through future imports — for example a
+long-term volunteer who isn't reflected in LCR — right-click the cell
+in Google Sheets and choose *Insert note*, then type a note that
+contains the word `keep` (e.g., `keep — long-term volunteer`). The
+note travels with the cell across imports; the email will not be
+removed even when LCR doesn't list it.
 
 ## See also
 
