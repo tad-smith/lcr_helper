@@ -7,6 +7,15 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-05-05 — extension version 1.4.0.1
+
+- `extension/generated-table-script.js`: add
+  `Elders Quorum Presidency:Elders-Quorum-Assistant-Secretary` to
+  `SYSTEM_FILTERS["Email Alias Filter"]` so the calling shows up in
+  the default filtered view alongside the rest of the EQ presidency.
+  Re-synced from code on load — no user action required.
+- `extension/manifest.json`: bump to `1.4.0.1`.
+
 ## 2026-05-05 — `keep` cell-note preserves emails through import — extension version 1.4.0.0
 
 New escape hatch for personal emails the ward wants to retain on a
