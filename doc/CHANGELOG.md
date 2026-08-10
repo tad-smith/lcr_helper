@@ -7,6 +7,26 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-08-09 — member-card endpoint moved hosts — extension version 1.4.0.2
+
+LCR rebuilt the orgs page on Next.js and retired the member-card
+endpoint on the `lcr.` origin, so every email lookup was returning
+`Error` with an HTTP 404 in the console. Callings still extracted —
+only the email column was affected.
+
+- `extension/content-script.js`: point `fetchOneEmail` at
+  `https://mltp-api.churchofjesuschrist.org/api/member/<uuid>/card`,
+  replacing the 404ing
+  `https://lcr.churchofjesuschrist.org/mlt/api/member-card?uuid=<uuid>`.
+  The uuid from `api/orgs` and the `{email:{address}}` response shape
+  are both unchanged. New `MEMBER_CARD_API_BASE` constant.
+- `extension/content-script.js`: the fetch is now cross-origin, so it
+  passes `credentials: 'include'` — fetch's `same-origin` default sends
+  no cookies to `mltp-api` and the request fails outright. No new
+  `host_permissions` entry: `mltp-api` grants CORS to the LCR page
+  origin, which is what a content-script fetch carries.
+- `extension/manifest.json`: bump to `1.4.0.2`.
+
 ## 2026-05-05 — extension version 1.4.0.1
 
 - `extension/generated-table-script.js`: add

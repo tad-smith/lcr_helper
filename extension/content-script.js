@@ -120,13 +120,34 @@ async function runWithConcurrency(items, concurrency, worker) {
 }
 
 /**
+ * Base URL for the member-card endpoint. LCR's orgs page was rebuilt on
+ * Next.js and the card moved off the LCR origin entirely:
+ *
+ *   old: https://lcr.churchofjesuschrist.org/mlt/api/member-card?uuid=<uuid>   (now 404)
+ *   new: https://mltp-api.churchofjesuschrist.org/api/member/<uuid>/card
+ *
+ * The uuid is unchanged — the same `position.person.uuid` from api/orgs
+ * works against the new host — and so is the response shape
+ * (`{ email: { address, privacy }, ... }`).
+ *
+ * Because this is now cross-origin, the fetch below MUST pass
+ * `credentials: 'include'`; fetch's default of `same-origin` sends no
+ * cookies to mltp-api and the request is rejected outright. No new
+ * host permission is needed: mltp-api grants CORS to the LCR page
+ * origin, which is the origin a content-script fetch carries.
+ */
+const MEMBER_CARD_API_BASE = 'https://mltp-api.churchofjesuschrist.org/api/member';
+
+/**
  * Fetches a member's preferred email from LCR's member-card endpoint.
  * Returns 'N/A' if the response has no email, 'Error' on network failure.
  */
 async function fetchOneEmail(uuid) {
   if (!uuid) return 'N/A';
   try {
-    const response = await fetch(`https://lcr.churchofjesuschrist.org/mlt/api/member-card?uuid=${uuid}`);
+    const response = await fetch(`${MEMBER_CARD_API_BASE}/${encodeURIComponent(uuid)}/card`, {
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     return data && data.email && data.email.address ? data.email.address : 'N/A';
