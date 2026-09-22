@@ -7,6 +7,31 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-09-21 — member-lookup fallback for privacy-restricted emails — extension version 1.4.0.3
+
+The `mltp-api` member-card endpoint honours each member's contact
+visibility setting relative to the viewer: a stake-level viewer gets
+`email: {}` for anyone whose email is set below "Stake Members", even
+though the address is still on the record. The import treated that
+empty result as a vacated calling and silently dropped the personal
+email (seen on the Mount Herman YSA rows for the Ward Clerk, Assistant
+Clerk–Finance, Temple & Family History Leader, and History Specialist).
+
+- `extension/content-script.js`: when the card comes back OK with no
+  address, `fetchOneEmail` now falls back to
+  `https://mltp-api.churchofjesuschrist.org/api/v2/member-lookup?term=<raw LCR name>&timestamp=<ms>`
+  and takes the first email of the `memberResults` entry whose `uuid`
+  matches. Card network errors still return `Error` with no lookup.
+- `extension/content-script.js`: lookups go through `enqueueLookup`, a
+  promise chain that allows one in-flight lookup at a time and spaces
+  starts by at least `MEMBER_LOOKUP_MIN_INTERVAL_MS` (300 ms). Card
+  fetches keep their 8-wide concurrency; the two limits are independent.
+- `extension/content-script.js`: new module-level `lcrNameByUuid` map,
+  rebuilt on every `api/orgs` payload, holds the raw `"Last, First"`
+  name for the lookup term so it never rides along on the calling object
+  into the callings-table URL.
+- `extension/manifest.json`: bump to `1.4.0.3`.
+
 ## 2026-08-09 — member-card endpoint moved hosts — extension version 1.4.0.2
 
 LCR rebuilt the orgs page on Next.js and retired the member-card

@@ -114,6 +114,14 @@ A second, independent content-script entry lives alongside it:
   implementation. `calling_sheet/EmailMerge.gs` mirrors it for the
   server-side sanity check. If you change one, change the other, and
   update `doc/email-merge-algorithm.md` with any semantic changes.
+- **Email fetch is card-then-lookup.** The `mltp-api` member-card
+  endpoint hides emails whose visibility is below the viewer's level
+  (a stake viewer sees `email: {}`), so `fetchOneEmail` falls back to
+  the `v2/member-lookup` endpoint, matched by uuid, only when the card
+  succeeds without an address. Lookups are serialised through
+  `enqueueLookup` (one in flight, 300 ms spacing). Don't route them
+  through the 8-wide card runner, and don't treat `email: {}` as "no
+  email on record".
 - **Settings never log / render.** Never add a code path that prints
   `sharedSecret` to console or into the DOM outside its password input.
 - **`quarterly-report.js` is an island.** No `common.js`,

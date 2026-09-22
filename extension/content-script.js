@@ -7,8 +7,18 @@
 let unitOrgData = null;
 let unitOrgDataCallings = null;
 
+/**
+ * uuid → raw LCR name (`"Last, First Middle"`) for every person seen in
+ * the most recent api/orgs payload. The member-lookup fallback in
+ * `fetchOneEmail` searches by name and matches the result on uuid, so
+ * we keep the unformatted name here rather than on the calling object
+ * (which would leak it into the callings-table URL).
+ */
+let lcrNameByUuid = new Map();
+
 window.addEventListener(LCR_API_DATA_EVENT, (event) => {
   unitOrgData = event.detail.unitOrgs;
+  lcrNameByUuid = new Map();
   unitOrgDataCallings = extractCallingsFromData(unitOrgData);
 });
 
@@ -38,6 +48,9 @@ function extractCallingsFromData(unitOrgData) {
         if (!calling.isVacant && position.person) {
           calling.person = formatPersonName(position.person.name);
           calling.memberProfileNumber = position.person.uuid;
+          if (position.person.uuid && position.person.name) {
+            lcrNameByUuid.set(position.person.uuid, position.person.name);
+          }
         }
 
         callings.push(calling);
@@ -139,20 +152,96 @@ async function runWithConcurrency(items, concurrency, worker) {
 const MEMBER_CARD_API_BASE = 'https://mltp-api.churchofjesuschrist.org/api/member';
 
 /**
- * Fetches a member's preferred email from LCR's member-card endpoint.
- * Returns 'N/A' if the response has no email, 'Error' on network failure.
+ * Member-lookup endpoint (the one behind LCR's "Find members" search box).
+ *
+ *   GET https://mltp-api.churchofjesuschrist.org/api/v2/member-lookup?term=<name>&timestamp=<ms>
+ *   → { memberResults: [ { uuid, emails: [{ email }], ... }, ... ] }
+ *
+ * Why it exists here: the member-card endpoint honours each member's
+ * contact-visibility setting relative to the *viewer*. A stake-level
+ * viewer gets `email: {}` (no address, no privacy tag) for anyone whose
+ * email is set below "Stake Members", even though the address is still
+ * on the record. The lookup endpoint returns the address regardless, so
+ * `fetchOneEmail` falls back to it — but only when the card came back
+ * successfully with no address. Card network errors still return
+ * 'Error' without a lookup.
+ *
+ * Any name format works as the term ("Last, First", "First Last", or
+ * just "Last"); we pass the raw LCR name and match on uuid because a
+ * surname search can return several people.
+ */
+const MEMBER_LOOKUP_API = 'https://mltp-api.churchofjesuschrist.org/api/v2/member-lookup';
+
+/** Minimum spacing between consecutive member-lookup requests. */
+const MEMBER_LOOKUP_MIN_INTERVAL_MS = 300;
+
+/**
+ * Serialises member-lookup calls: at most one in flight at a time, and
+ * at least MEMBER_LOOKUP_MIN_INTERVAL_MS between the start of one call
+ * and the start of the next. The card fetches run 8-wide; this queue
+ * is deliberately independent of that so a burst of privacy-restricted
+ * members can't fan out into a burst of lookups.
+ */
+let lookupChain = Promise.resolve();
+let lastLookupStartedAt = 0;
+
+function enqueueLookup(task) {
+  const run = lookupChain.then(async () => {
+    const wait = lastLookupStartedAt + MEMBER_LOOKUP_MIN_INTERVAL_MS - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    lastLookupStartedAt = Date.now();
+    return task();
+  });
+  // Keep the chain alive even if this task rejects.
+  lookupChain = run.catch(() => {});
+  return run;
+}
+
+/**
+ * Looks a member up by name and returns the first email on the record
+ * matching `uuid`, or '' if the lookup found no address for them.
+ * Throws on network / non-2xx / unparsable responses.
+ */
+async function lookupEmailByUuid(uuid, name) {
+  const url = `${MEMBER_LOOKUP_API}?term=${encodeURIComponent(name)}&timestamp=${Date.now()}`;
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  const results = (data && data.memberResults) || [];
+  const match = results.find((p) => p && p.uuid === uuid);
+  if (!match || !Array.isArray(match.emails)) return '';
+  const entry = match.emails.find((e) => e && e.email);
+  return entry ? entry.email : '';
+}
+
+/**
+ * Fetches a member's preferred email from LCR's member-card endpoint,
+ * falling back to a serialised member-lookup when the card returns no
+ * address (see MEMBER_LOOKUP_API). Returns 'N/A' if neither source has
+ * an email, 'Error' on network failure.
  */
 async function fetchOneEmail(uuid) {
   if (!uuid) return 'N/A';
+  let data;
   try {
     const response = await fetch(`${MEMBER_CARD_API_BASE}/${encodeURIComponent(uuid)}/card`, {
       credentials: 'include',
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    return data && data.email && data.email.address ? data.email.address : 'N/A';
+    data = await response.json();
   } catch (error) {
     console.error(`Error fetching email for UUID ${uuid}:`, error);
+    return 'Error';
+  }
+  if (data && data.email && data.email.address) return data.email.address;
+
+  const name = lcrNameByUuid.get(uuid);
+  if (!name) return 'N/A';
+  try {
+    const email = await enqueueLookup(() => lookupEmailByUuid(uuid, name));
+    return email || 'N/A';
+  } catch (error) {
+    console.error(`Error looking up email for UUID ${uuid}:`, error);
     return 'Error';
   }
 }
