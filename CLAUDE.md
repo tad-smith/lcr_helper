@@ -10,11 +10,15 @@ Three sibling subsystems plus a shared documentation tree:
 |------|-----------|-----------|
 | `extension/` | Chrome extension (Manifest V3), vanilla JS, no build step. Injects an *Extract Callings* button on LCR and hosts the callings-table page + *Import into Calling Sheet* flow. Also adds a *Copy Salvation and Exaltation Metrics* button on the quarterly-report page (standalone, unrelated to the calling-sheet pipeline). | Chrome |
 | `calling_sheet/` | Google Apps Script web app, managed with `clasp`. Exposes `doGet` / `doPost` endpoints consumed by the extension. | Apps Script runtime |
+| `email_forwarding_sync/` | Single-file Apps Script, run daily by time-based triggers. Reads the same ward tabs `calling_sheet/` writes and mirrors each row's column-B forwarding address into a Google Group whose members are that row's column E+ emails. No direct link to the extension. | Apps Script runtime |
 | `doc/` | All documentation + the **single** repo-wide `CHANGELOG.md`. | — |
 
 There is no build, no tests, no CI, no package.json, no TypeScript.
 Deployment of `calling_sheet/` is manual via `clasp`; deployment of the
-extension is manual via *Load unpacked*.
+extension is manual via *Load unpacked*; `email_forwarding_sync/` is
+deployed by pasting its `.gs` file into the Apps Script editor (no
+`clasp`). Changes to the ward-tab column layout affect both Apps Script
+projects.
 
 ## The CHANGELOG is load-bearing
 
@@ -22,7 +26,8 @@ extension is manual via *Load unpacked*.
 appends or extends the most recent dated entry. No per-subsystem
 changelogs may be created — if you find one, delete it and move its
 content to `doc/CHANGELOG.md`. Each entry prefixes the subsystem
-(`extension/`, `calling_sheet/`, `doc/`, or root) and stays terse.
+(`extension/`, `calling_sheet/`, `email_forwarding_sync/`, `doc/`, or
+root) and stays terse.
 
 ## `extension/`
 
@@ -35,8 +40,8 @@ part of the codebase:
    When a request matches `api/orgs`, it clones the response and
    dispatches a `LCR_API_DATA_RECEIVED` CustomEvent. Content scripts
    cannot patch `window.fetch` because they live in an isolated world.
-2. **Content script** (`content-script.js`, with `utils.js` +
-   `common.js`) — matches
+2. **Content script** (`content-script.js`, with `constants.js` +
+   `utils.js` + `common.js`) — matches
    `https://lcr.churchofjesuschrist.org/mlt/orgs*`. Listens for the
    CustomEvent, flattens the org tree, injects the *Extract Callings*
    button, fetches per-member emails, sends a message to the background
@@ -44,7 +49,8 @@ part of the codebase:
 3. **Service worker** (`background.js`) — opens
    `callings-table.html?ward=…&callings=…` in a new tab.
 4. **Generated table page** (`callings-table.html` +
-   `generated-table-script.js` + `common.js` + the import scripts) —
+   `constants.js` + `generated-table-script.js` + `common.js` + the
+   import scripts) —
    standalone extension-origin page. Manages filtering, saved filters,
    copy-to-clipboard, and the import flow.
 
@@ -67,6 +73,7 @@ A second, independent content-script entry lives alongside it:
 | `background.js` | Service worker — listens for `openCallingsTable`, opens the callings-table tab. |
 | `interceptor.js` | Page-world fetch wrapper. |
 | `content-script.js` | Button injection via `MutationObserver` on `#role-picker-container`; email fetching; ward-name scraping. |
+| `constants.js` | Shared string constants (event name, message action, storage keys, table page name). Loaded by the content script, the service worker (`importScripts`), and `callings-table.html`; not by `interceptor.js`, which re-declares the one string it needs. |
 | `common.js` | Shared between content script and callings-table page. `fixCallingName`, `fixOrganizationName`, `mergeCallings`. **Cannot depend on `chrome.*` or any specific DOM.** |
 | `utils.js` | Style injection helpers. |
 | `callings-table.html` | Scaffold for the generated page: header, filter controls, table, modal containers, toast container. |
@@ -76,7 +83,7 @@ A second, independent content-script entry lives alongside it:
 | `callings-sheet-settings.js` | Settings modal — loads/saves `chrome.storage.local['callingSheetSettings']`; exposes `window.LCRHelperSettings`. |
 | `callings-sheet-import.js` | Import flow — snapshot fetch, client-side diff, review modal, apply POST, toast. Mirrors the email-merge algorithm in `calling_sheet/EmailMerge.gs`. |
 | `quarterly-report.js` | Standalone content script for `report/quarterly-report*`. Injects the *Copy Salvation and Exaltation Metrics* button; builds a single-column HTML + plain-text clipboard payload from the report table. `QR_MAPPING` is the source of truth for sheet-row ↔ LCR-line mapping. Shares no code with the calling-sheet pipeline. |
-| `images/` | Extension icons + gear icon (the settings button uses the inline `⚙`; the SVG is a fallback). |
+| `images/` | Extension icons. The settings button uses an inline `⚙`; `gear_icon.svg` is not referenced by any code. |
 
 ### Conventions and gotchas (extension)
 
@@ -138,23 +145,22 @@ A second, independent content-script entry lives alongside it:
 
 Apps Script V8 runtime, no external libraries. Each `.gs` file shares a
 single global namespace — declaring the same function name in two files
-is a loading error. Because of this, router handlers in `Code.gs` are
-stubbed until the real impl is ready, and the stub is deleted when the
-real file lands.
+is a loading error.
 
 ### File roles
 
 | File | Purpose |
 |------|---------|
-| `appsscript.json` | V8 + web app config (`executeAs: USER_DEPLOYING`, `access: ANYONE_ANONYMOUS`). |
+| `appsscript.json` | V8 runtime, time zone, Stackdriver exception logging. Has no `webapp` block; web-app access (*Who has access: Anyone*) is set on the deployment in the Apps Script editor (see `doc/apps-script-deploy.md`). |
 | `Code.gs` | `doGet` / `doPost` routing. `jsonResponse(obj)` + `parseJsonBody(e)` helpers. |
 | `Auth.gs` | `verifySecret(provided)` reading `SHARED_SECRET` from Script Properties; length-aware constant-time compare. |
 | `Config.gs` | `getConfig()` reads `_config` + `_position_overrides` with a 5-minute CacheService cache keyed on the spreadsheet's `getLastUpdated()`. |
 | `Logging.gs` | `logEvent(level, message, data)` — writes to the auto-created `_log` tab and to `console.log`. |
 | `Sheet.gs` | `getTargetSpreadsheet()` — resolves the target sheet via the `SHEET_ID` script property. The standalone deployment model depends on this. |
-| `Snapshot.gs` | `handleSnapshot(wardName)` — reads the ward tab, derives `lcr_id` per row (override or natural), returns JSON with `generated_at`. Owns the `FIRST_EMAIL_COLUMN` / `NAME_COLUMN` / `ORG_COLUMN` / `POS_COLUMN` constants. |
-| `Apply.gs` | `handleApply(body)` — validates payload, runs the Drive `getLastUpdated` staleness check, runs `verifyInternalAliasesPreserved` per operation, writes optional `new_name` to column D, then clears + writes column E onward with a single `setValues()` per row, one `SpreadsheetApp.flush()` at the end. Column D is only written when `new_name` is present on the op. |
-| `EmailMerge.gs` | `parseEmailCell`, `mergeEmails`, `verifyInternalAliasesPreserved` — the server-side mirror of the extension's merge logic. |
+| `Snapshot.gs` | `handleSnapshot(wardName)` — reads the ward tab, derives `lcr_id` per row (override or natural), returns JSON with `generated_at` and per-cell `email_notes`. Owns `verifyWardTabHeaders` and the `FIRST_EMAIL_COLUMN` / `NAME_COLUMN` / `ORG_COLUMN` / `POS_COLUMN` constants. |
+| `Apply.gs` | `handleApply(body)` — validates payload, runs the Drive `getLastUpdated` staleness check, runs `verifyInternalAliasesPreserved` and `verifyKeptCellsPreserved` per operation, writes optional `new_name` to column D, then clears + writes column E onward with a single `setValues()` per row, one `SpreadsheetApp.flush()` at the end. Column D is only written when `new_name` is present on the op. |
+| `EmailMerge.gs` | `parseEmailCell`, `mergeEmails`, `verifyInternalAliasesPreserved`, `verifyKeptCellsPreserved` — the server-side mirror of the extension's merge logic. |
+| `Debug.gs` | `debugConfig`, `debugSnapshot` — run from the Apps Script editor to inspect what `doGet`/`doPost` would see; not called by any endpoint. |
 
 ### Conventions and gotchas (calling_sheet)
 
@@ -187,8 +193,9 @@ real file lands.
   `Name`. Case-insensitive, whitespace-tolerant. This catches a
   server-sheet version mismatch that would otherwise corrupt every
   row silently.
-- **Same-name-in-two-files is a load error.** When adding a file that
-  owns a previously-stubbed function, delete the stub from `Code.gs`.
+- **Same-name-in-two-files is a load error.** Before adding a
+  function, check that no other `.gs` file (including a placeholder in
+  `Code.gs`) already declares that name.
 - **`.clasp.json` is gitignored.** Committed template:
   `.clasp.json.example`. The scriptId is per-environment.
 - **`clasp push` is destructive on the remote side.** It uploads the

@@ -7,6 +7,20 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-10-02 — CLAUDE.md fact refresh
+
+- root `CLAUDE.md`: add `email_forwarding_sync/` to the repository
+  table, deployment notes, and changelog-prefix list.
+- root `CLAUDE.md`: name `constants.js` in the content-script and
+  table-page contexts; add its File roles row.
+- root `CLAUDE.md`: `appsscript.json` row no longer claims a `webapp`
+  block; access is set on the deployment.
+- root `CLAUDE.md`: add `Debug.gs` row; list `verifyKeptCellsPreserved`,
+  `verifyWardTabHeaders`, and `email_notes` in the Snapshot/Apply/
+  EmailMerge rows.
+- root `CLAUDE.md`: drop the scaffolding-era `Code.gs` stub workflow;
+  `gear_icon.svg` is described as unreferenced, not a fallback.
+
 ## 2026-09-21 — member-lookup fallback for privacy-restricted emails — extension version 1.4.0.3
 
 The `mltp-api` member-card endpoint honours each member's contact
