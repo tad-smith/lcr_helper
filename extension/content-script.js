@@ -1,15 +1,21 @@
 /**
  * Runs in the extension's isolated world on LCR's orgs page. Listens for
  * the interceptor's CustomEvent to capture the api/orgs payload, and
- * injects the Extract Callings button when LCR's role-picker mounts.
+ * injects the Extract Callings button when LCR's page-header button group
+ * mounts.
  */
 
-let unitOrgData = null;
-let unitOrgDataCallings = null;
+/**
+ * unitNumber (string) → `unitOrgs` array from that unit's api/orgs
+ * payload. LCR fires one request per unit ticked in its unit picker and
+ * caches the results client-side (re-ticking a unit doesn't refetch), so
+ * we keep every payload we see rather than just the latest.
+ */
+const unitOrgsByUnit = new Map();
 
 /**
- * uuid → raw LCR name (`"Last, First Middle"`) for every person seen in
- * the most recent api/orgs payload. The member-lookup fallback in
+ * uuid → raw LCR name (`"Last, First Middle"`) for every person in the
+ * unit currently being extracted. The member-lookup fallback in
  * `fetchOneEmail` searches by name and matches the result on uuid, so
  * we keep the unformatted name here rather than on the calling object
  * (which would leak it into the callings-table URL).
@@ -17,9 +23,10 @@ let unitOrgDataCallings = null;
 let lcrNameByUuid = new Map();
 
 window.addEventListener(LCR_API_DATA_EVENT, (event) => {
-  unitOrgData = event.detail.unitOrgs;
-  lcrNameByUuid = new Map();
-  unitOrgDataCallings = extractCallingsFromData(unitOrgData);
+  const { unitNumber, data } = event.detail || {};
+  if (!unitNumber || !data || !Array.isArray(data.unitOrgs)) return;
+  unitOrgsByUnit.set(String(unitNumber), data.unitOrgs);
+  refreshButtonState();
 });
 
 /**
@@ -313,87 +320,240 @@ function extractUnitName() {
 
 /**
  * Sends the (email-augmented) calling list to the service worker so it
- * can open the callings-table page in a new tab.
+ * can open the callings-table page in a new tab. Resolves once the tab
+ * is requested; rejects if the service worker doesn't confirm.
  */
-function openCallingsTab(callings, button) {
+function openCallingsTab(callings, ward) {
   const message = {
     action: MSG_OPEN_CALLINGS_TABLE,
     callings: callings,
-    ward: extractUnitName(),
+    ward: ward,
   };
-  chrome.runtime.sendMessage(message, (response) => {
-    if (response && response.status === 'Tab creation requested.') {
-      button.disabled = false;
-      button.textContent = 'Extract Callings';
-    } else {
-      console.error('Failed to open tab or no response received.');
-      button.disabled = false;
-      button.textContent = 'Error (Retry)';
-    }
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (response && response.status === 'Tab creation requested.') {
+        resolve();
+      } else {
+        reject(new Error('Failed to open tab or no response received.'));
+      }
+    });
   });
 }
 
+/******************* Unit selection + button state *******************/
+
 /**
- * Click handler for the Extract Callings button. Disables the button
- * during the async fetch so a double-click can't fire two extraction
- * cycles. Requires the interceptor to have already captured an api/orgs
- * response; if not, prompts the user to re-navigate.
+ * How long to wait for LCR's own api/orgs request after a unit is
+ * selected before fetching it ourselves. LCR's request typically takes
+ * ~1.5 s to land; the page never issues one for a unit it rendered
+ * server-side (the stake on first load) or already has cached.
  */
-function extractCallingsHandler(event) {
-  const button = event.target;
+const SELF_FETCH_DELAY_MS = 2500;
 
-  if (!unitOrgDataCallings) {
-    button.textContent = 'Data not ready — reload the ward';
-    return;
-  }
+/** Units we've already self-fetched (or are fetching), so we try once. */
+const selfFetchAttempted = new Set();
+/** Units whose self-fetch hasn't settled yet. */
+const selfFetchPending = new Set();
+let selfFetchTimer = null;
+let selfFetchTimerUnit = null;
 
-  button.disabled = true;
-  button.textContent = 'Loading Callings...';
+/** True while an extraction (email fetch) is in flight. */
+let extracting = false;
+/** Last extraction error, cleared on the next click or selection change. */
+let extractError = false;
+let lastSelectionKey = null;
 
-  fetchMemberEmails(unitOrgDataCallings)
-    .then((callings) => openCallingsTab(callings, button))
-    .catch((error) => {
-      console.error(error);
-      button.disabled = false;
-      button.textContent = 'Error (Retry)';
-    });
+/**
+ * Unit numbers currently ticked in LCR's unit picker — the first
+ * multi-select in the Filter Results row (the second one is the
+ * Organizations filter). Each unit checkbox's value is its unit
+ * number; non-numeric values ("All Wards") are skipped.
+ *
+ * @returns {string[]|null} Selected unit numbers, or null if the picker
+ *   isn't on the page.
+ */
+function getSelectedUnitNumbers() {
+  const filterInput = document.querySelector('div#partner-content input[placeholder="Filter Results"]');
+  const row = filterInput && filterInput.closest('.eden-row');
+  const picker = row && row.querySelector('.multi-select__styled-stack');
+  if (!picker) return null;
+  return [...picker.querySelectorAll('input[type="checkbox"]')]
+    .filter((box) => box.checked && /^\d+$/.test(box.value))
+    .map((box) => box.value);
 }
 
 /**
- * Builds the Extract Callings button and inserts it before LCR's
- * role-picker container. Idempotent — the observer below can call it
+ * Fetches a unit's api/orgs payload directly, for selections LCR serves
+ * without a request of its own. Same GET the page makes; the content
+ * script's fetch is same-origin, so the session cookie goes with it.
+ */
+async function selfFetchUnit(unitNumber) {
+  selfFetchAttempted.add(unitNumber);
+  selfFetchPending.add(unitNumber);
+  refreshButtonState();
+  try {
+    const url = `${location.origin}/mlt/api/orgs?unitNumber=${encodeURIComponent(unitNumber)}`;
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (!Array.isArray(data.unitOrgs)) throw new Error('No unitOrgs in response');
+    unitOrgsByUnit.set(unitNumber, data.unitOrgs);
+  } catch (error) {
+    console.error(`LCR Helper: could not load unit ${unitNumber}:`, error);
+  }
+  selfFetchPending.delete(unitNumber);
+  refreshButtonState();
+}
+
+/** Starts (or keeps) the delayed self-fetch for `unitNumber`. */
+function scheduleSelfFetch(unitNumber) {
+  if (selfFetchAttempted.has(unitNumber)) return;
+  if (selfFetchTimer && selfFetchTimerUnit === unitNumber) return;
+  clearTimeout(selfFetchTimer);
+  selfFetchTimerUnit = unitNumber;
+  selfFetchTimer = setTimeout(() => {
+    selfFetchTimer = null;
+    selfFetchTimerUnit = null;
+    if (unitOrgsByUnit.has(unitNumber)) return;
+    const selected = getSelectedUnitNumbers();
+    if (selected && selected.length === 1 && selected[0] === unitNumber) {
+      selfFetchUnit(unitNumber);
+    }
+  }, SELF_FETCH_DELAY_MS);
+}
+
+/**
+ * Applies one of three looks to the button:
+ * - `ready`: enabled, red, "Extract Callings".
+ * - `loading`: disabled, faded red — the unit's data hasn't arrived yet.
+ * - `unavailable`: disabled, grey — nothing extractable is selected.
+ */
+function setButtonState(button, state, text) {
+  button.disabled = state !== 'ready';
+  button.classList.toggle('extract-callings-button--unavailable', state === 'unavailable');
+  button.title = state === 'unavailable' ? text : '';
+  if (button.textContent !== text) button.textContent = text;
+}
+
+/**
+ * Recomputes the button from the unit picker and the captured data.
+ * Enabled only when exactly one unit is ticked AND that unit's api/orgs
+ * payload has been captured. Called on every DOM mutation and picker
+ * change, so it must stay cheap and idempotent.
+ */
+function refreshButtonState() {
+  const button = document.getElementById('extract-callings-button-id');
+  if (!button || extracting) return;
+
+  const selected = getSelectedUnitNumbers();
+  const selectionKey = selected ? selected.join(',') : '';
+  if (selectionKey !== lastSelectionKey) {
+    lastSelectionKey = selectionKey;
+    extractError = false;
+  }
+
+  if (!selected || selected.length !== 1) {
+    clearTimeout(selfFetchTimer);
+    selfFetchTimer = null;
+    selfFetchTimerUnit = null;
+    setButtonState(button, 'unavailable', 'Select one unit to extract');
+    return;
+  }
+
+  const unitNumber = selected[0];
+  if (unitOrgsByUnit.has(unitNumber)) {
+    setButtonState(button, 'ready', extractError ? 'Error (Retry)' : 'Extract Callings');
+    return;
+  }
+
+  if (selfFetchAttempted.has(unitNumber) && !selfFetchPending.has(unitNumber)) {
+    // Our own fetch for this unit already ran and failed.
+    setButtonState(button, 'unavailable', "Couldn't load unit — reload the page");
+    return;
+  }
+
+  setButtonState(button, 'loading', 'Loading unit…');
+  scheduleSelfFetch(unitNumber);
+}
+
+/**
+ * Click handler for the Extract Callings button. Only reachable when
+ * refreshButtonState has enabled it, i.e. exactly one unit is selected
+ * and its data is loaded. Holds the button disabled during the async
+ * email fetch so a double-click can't fire two extraction cycles.
+ */
+function extractCallingsHandler(event) {
+  const button = event.target;
+  const selected = getSelectedUnitNumbers();
+  if (!selected || selected.length !== 1 || !unitOrgsByUnit.has(selected[0])) {
+    refreshButtonState();
+    return;
+  }
+
+  // Snapshot everything tied to the selection now; the user may change
+  // the picker while emails are loading.
+  lcrNameByUuid = new Map();
+  const callings = extractCallingsFromData(unitOrgsByUnit.get(selected[0]));
+  const ward = extractUnitName();
+
+  extracting = true;
+  extractError = false;
+  setButtonState(button, 'loading', 'Loading Callings...');
+
+  fetchMemberEmails(callings)
+    .then((withEmails) => openCallingsTab(withEmails, ward))
+    .catch((error) => {
+      console.error(error);
+      extractError = true;
+    })
+    .finally(() => {
+      extracting = false;
+      refreshButtonState();
+    });
+}
+
+// LCR's page-header button group (the one holding Print), beside the
+// "Organizations" heading. LCR's old `#role-picker-container` anchor was
+// removed in the Oct 2026 redesign; if the button vanishes again, check
+// this selector first.
+const BUTTON_ANCHOR_SELECTOR = '.page-container__button-container';
+
+/**
+ * Builds the Extract Callings button and puts it first in LCR's
+ * page-header button group. Idempotent — the observer below can call it
  * repeatedly and only the first call has any effect.
  */
 function createExtractCallingsButton() {
   if (document.getElementById('extract-callings-button-id')) return;
 
+  const anchor = document.querySelector(BUTTON_ANCHOR_SELECTOR);
+  if (!anchor) return;
+
   addExtensionStyles();
   const button = document.createElement('button');
   button.id = 'extract-callings-button-id';
-  button.textContent = 'Extract Callings';
   button.type = 'button';
   button.classList.add('extract-callings-button');
-
-  const rolePicker = document.getElementById('role-picker-container');
-  if (!rolePicker) {
-    console.error("Role Picker element with ID 'role-picker-container' not found.");
-    return;
-  }
-  rolePicker.insertAdjacentElement('beforebegin', button);
+  anchor.insertAdjacentElement('afterbegin', button);
   button.addEventListener('click', extractCallingsHandler);
+  refreshButtonState();
 }
 
 /******************* Execute Content Script *******************/
+// Checkbox ticks don't show up as DOM mutations, so listen for them too.
+// The table re-render that follows a selection does trigger the observer.
+document.addEventListener('change', refreshButtonState, true);
+
 const observer = new MutationObserver(() => {
-  const rolePicker = document.getElementById('role-picker-container');
-  const button = document.getElementById('extract-callings-button-id');
-  if (rolePicker && !button) createExtractCallingsButton();
+  if (!document.getElementById('extract-callings-button-id')) {
+    createExtractCallingsButton();
+  } else {
+    refreshButtonState();
+  }
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-if (document.getElementById('role-picker-container')) {
-  createExtractCallingsButton();
-}
+createExtractCallingsButton();
 
 // Inject the interceptor into the page's world.
 const script = document.createElement('script');

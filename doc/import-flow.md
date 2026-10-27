@@ -21,8 +21,11 @@ Before your first import:
 ## 1. Configure the extension (first time)
 
 1. Sign into LCR and navigate to *Callings by Organization* for your
-   ward. The extension injects an *Extract Callings* button near the
-   role picker.
+   ward. The extension injects an *Extract Callings* button in the page
+   header, left of *Attendance Rolls* / *Print*. It's enabled only when
+   exactly one unit is ticked in the unit picker and that unit has
+   loaded; otherwise it's grey (*Select one unit to extract*) or shows
+   *Loading unit…*.
 2. Click *Extract Callings*. The generated callings table opens in a
    new tab.
 3. In the new tab, click the gear icon (⚙) next to *Import into Calling

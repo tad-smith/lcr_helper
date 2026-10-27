@@ -38,7 +38,8 @@ part of the codebase:
 1. **Page context** (`interceptor.js`) — injected via
    `web_accessible_resources` so it can monkey-patch `window.fetch`.
    When a request matches `api/orgs`, it clones the response and
-   dispatches a `LCR_API_DATA_RECEIVED` CustomEvent. Content scripts
+   dispatches a `LCR_API_DATA_RECEIVED` CustomEvent with detail
+   `{unitNumber, data}`. Content scripts
    cannot patch `window.fetch` because they live in an isolated world.
 2. **Content script** (`content-script.js`, with `constants.js` +
    `utils.js` + `common.js`) — matches
@@ -72,7 +73,7 @@ A second, independent content-script entry lives alongside it:
 | `manifest.json` | MV3 manifest. Two content-script entries: one for `mlt/orgs*` (the calling-sheet pipeline) and one for `report/quarterly-report*` (the quarterly-report copy button). `interceptor.js` is in `web_accessible_resources`; `host_permissions` include `script.google.com/*` and `script.googleusercontent.com/*` for the import. |
 | `background.js` | Service worker — listens for `openCallingsTable`, opens the callings-table tab. |
 | `interceptor.js` | Page-world fetch wrapper. |
-| `content-script.js` | Button injection via `MutationObserver` on `#role-picker-container`; email fetching; ward-name scraping. |
+| `content-script.js` | Button injection via `MutationObserver` into `.page-container__button-container` (`BUTTON_ANCHOR_SELECTOR`); email fetching; ward-name scraping. |
 | `constants.js` | Shared string constants (event name, message action, storage keys, table page name). Loaded by the content script, the service worker (`importScripts`), and `callings-table.html`; not by `interceptor.js`, which re-declares the one string it needs. |
 | `common.js` | Shared between content script and callings-table page. `fixCallingName`, `fixOrganizationName`, `mergeCallings`. **Cannot depend on `chrome.*` or any specific DOM.** |
 | `utils.js` | Style injection helpers. |
@@ -105,7 +106,17 @@ A second, independent content-script entry lives alongside it:
   - Young Women Class Adviser / Young Women Specialist roll up to org "Young Women"
   Add new rules here rather than at call sites.
 - **Button injection is MutationObserver-driven.** LCR is a SPA; the
-  role-picker element can appear/disappear.
+  header button group (`BUTTON_ANCHOR_SELECTOR`) can appear/disappear.
+  If the button stops showing, check that selector against the live
+  page first — LCR's Oct 2026 redesign removed the old
+  `#role-picker-container` anchor.
+- **The button is gated on exactly one loaded unit.** LCR's unit
+  picker is a multi-select whose checkbox values are unit numbers
+  (`getSelectedUnitNumbers`). `refreshButtonState` enables the button
+  only when one unit is ticked and `unitOrgsByUnit` has its payload;
+  grey = nothing extractable selected, faded red = loading. LCR caches
+  per unit and server-renders the initial stake, so when no request
+  shows up the content script self-fetches `/mlt/api/orgs?unitNumber=`.
 - **`extractUnitName` is fragile.** It's a DOM-shape traversal rooted
   at the *Filter Results* input. If LCR's DOM changes, this returns
   `"Unknown Unit"` and the new tab title is empty. First place to look
@@ -113,9 +124,6 @@ A second, independent content-script entry lives alongside it:
 - **`SYSTEM_FILTERS` are re-synced from code on load.** Editing the
   array in `generated-table-script.js` propagates to users on their
   next load. User filters are never overwritten.
-- **Known bug — `button.disabled = false` in
-  `extractCallingsHandler`.** Looks like it should be `= true`. Leave
-  unless explicitly fixing.
 - **Import module must stay in sync with Apps Script.** The parsing +
   merge code in `callings-sheet-import.js` is the canonical
   implementation. `calling_sheet/EmailMerge.gs` mirrors it for the

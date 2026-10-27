@@ -34,7 +34,7 @@ function addExtensionStyles() {
         align-items: center;
         -webkit-box-pack: center;
         justify-content: center;
-        margin: 0px;
+        margin: 0 0.75rem 0 0;
         border-radius: 0.125rem;
         cursor: pointer;
         font-weight: 400;
@@ -52,6 +52,13 @@ function addExtensionStyles() {
     }
       .extract-callings-button:hover { background: rgb(153, 0, 0); border-color: rgb(153, 0, 0); }
       .extract-callings-button:disabled { opacity: 0.6; cursor: default; }
+      .extract-callings-button--unavailable,
+      .extract-callings-button--unavailable:hover {
+        background: rgb(158, 158, 158);
+        border-color: rgb(158, 158, 158);
+        opacity: 1;
+        cursor: not-allowed;
+      }
   `));
   document.head.appendChild(styleElement);
 }

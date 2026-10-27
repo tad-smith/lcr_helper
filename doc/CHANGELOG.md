@@ -7,6 +7,37 @@ Entries are grouped by date; newest first. Each bullet names the
 subsystem touched (`extension/`, `calling_sheet/`, `doc/`, or root) and
 describes the change in one line.
 
+## 2026-10-26 — re-anchor Extract Callings button (1.4.0.4); gate it on a single loaded unit (1.4.0.5) — extension version 1.4.0.5
+
+LCR's redesign of `mlt/orgs` removed `#role-picker-container`, so the
+*Extract Callings* button never appeared. The `api/orgs` payload,
+interceptor match, and `extractUnitName` still work unchanged.
+
+- `extension/content-script.js`: inject the button as the first child
+  of `.page-container__button-container` (the header group holding
+  *Attendance Rolls* / *Print*) via a new `BUTTON_ANCHOR_SELECTOR`.
+- `extension/utils.js`: 0.75rem right margin on the button so it
+  doesn't butt against *Attendance Rolls*.
+- `extension/interceptor.js`: event detail is now `{unitNumber, data}`,
+  `unitNumber` taken from the request URL. The redesigned unit picker
+  is multi-select and fires one `api/orgs` request per ticked unit, so
+  "last response" no longer means "the selected unit".
+- `extension/content-script.js`: payloads are cached per unit
+  (`unitOrgsByUnit`; LCR doesn't refetch a unit it already has). The
+  button is enabled only when exactly one unit is ticked and its
+  payload is loaded. Otherwise it's grey "Select one unit to extract"
+  (`.extract-callings-button--unavailable`) or faded "Loading unit…".
+  If no page request arrives within 2.5 s (e.g. the stake, which LCR
+  renders server-side), the content script fetches
+  `/mlt/api/orgs?unitNumber=…` itself, once per unit.
+- `extension/content-script.js`: ward name and callings are snapshotted
+  at click time, so changing the picker mid-extraction can't mislabel
+  the tab.
+- `extension/manifest.json`: version 1.4.0.4 (re-anchor), then 1.4.0.5
+  (single-unit gate).
+- `doc/import-flow.md`, root `CLAUDE.md`: describe the new anchor and
+  the single-unit gate; drop the stale `button.disabled` known-bug note.
+
 ## 2026-10-02 — CLAUDE.md fact refresh
 
 - root `CLAUDE.md`: add `email_forwarding_sync/` to the repository

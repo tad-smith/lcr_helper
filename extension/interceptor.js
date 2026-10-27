@@ -15,9 +15,14 @@
     if (url instanceof Request) url = url.url;
 
     if (url && url.toString().includes('api/orgs')) {
+      // Tag the payload with its unit so the content script can tell
+      // which picker selection it belongs to. LCR fires one request per
+      // ticked unit and caches results, so "latest response" is not
+      // the same as "currently selected unit".
+      const unitNumber = new URL(url.toString(), location.href).searchParams.get('unitNumber');
       // Clone so the original caller's body stream is untouched.
       response.clone().json().then((data) => {
-        window.dispatchEvent(new CustomEvent(LCR_API_DATA_EVENT, { detail: data }));
+        window.dispatchEvent(new CustomEvent(LCR_API_DATA_EVENT, { detail: { unitNumber, data } }));
       }).catch((err) => {
         console.error('Error parsing JSON from intercepted request:', err);
       });
